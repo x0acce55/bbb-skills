@@ -1,0 +1,10 @@
+{
+  "autoMemoryDirectory": "REPLACE_WITH_ABSOLUTE_PATH/memories/REPLACE_WITH_MACHINE_ID",
+  "env": {
+    "BBB_VAULT_ROOT": "REPLACE_WITH_ABSOLUTE_PATH",
+    "BBB_MACHINE_ID": "REPLACE_WITH_MACHINE_ID",
+    "BBB_VAULT_ID": "REPLACE_WITH_VAULT_ID",
+    "BBB_SETUP_SKILL": "bbb-vault-setup",
+    "BBB_SETUP_SOURCE": ""
+  }
+}

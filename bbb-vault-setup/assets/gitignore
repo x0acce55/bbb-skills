@@ -1,0 +1,10 @@
+# Machine-specific. Must never sync: if it does, the other machine inherits this
+# machine's memory path and the per-machine buffer separation collapses.
+.claude/settings.local.json
+
+# Sync client debris. Merge by hand, then delete.
+*conflicted copy*
+*.sync-conflict-*
+
+# Transient lock
+memories/.lock.json
