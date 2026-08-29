@@ -1,0 +1,6 @@
+#!/bin/sh
+# claude-paid — full Claude Code session billed to the Audacy Anthropic Console
+# API key instead of the Max subscription. The key is fetched by apiKeyHelper at
+# call time (never on disk, never in env); see claude-fallback/README.md.
+# Default `claude` stays on the subscription — use this only when Max is out.
+exec claude --settings "$HOME/.claude/paid-settings.json" "$@"

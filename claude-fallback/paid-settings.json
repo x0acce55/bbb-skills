@@ -1,0 +1,3 @@
+{
+  "apiKeyHelper": "gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel"
+}

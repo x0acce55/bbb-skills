@@ -1,0 +1,7 @@
+#!/bin/sh
+# fable — one-off Fable 5 question from anywhere (local-model sessions, scripts),
+# billed to the Audacy API key. Key lives only in this process's env for the one
+# invocation (ADR-0020 rule-2 wrapper pattern).
+#   usage: fable "why is the sky blue"     (or pipe stdin with -)
+ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel)" \
+  exec claude -p --model claude-fable-5 "$@"
