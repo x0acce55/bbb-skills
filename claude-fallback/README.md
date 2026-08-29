@@ -15,7 +15,16 @@ Two PATH shims, no settings file:
   Secret Manager (`anthropic-api-key`, project `secops-opintel`) into that one
   session's env as `ANTHROPIC_AUTH_TOKEN`, sets `ANTHROPIC_BASE_URL` and the
   required `anthropic-workspace-id` header via `ANTHROPIC_CUSTOM_HEADERS`
-  (Claude Code ≥ 2.1.227), then `exec claude "$@"`.
+  (Claude Code ≥ 2.1.227), then `exec claude "$@"`. Alternate key sources
+  (leading flags; everything after them passes to claude):
+  - `claude-paid -s <secret-name> ...` — a different Secret Manager secret,
+    same project/endpoint/workspace (the "multiple keys" path).
+  - `claude-paid -k <key> ...` — literal key, break-glass for when gcloud is
+    down. **A pasted literal lands in shell history** — use
+    `-k "$(<command>)"` or `CLAUDE_PAID_KEY="$(<command>)" claude-paid ...`
+    instead whenever possible.
+  - Precedence: `-k` > `-s` > `CLAUDE_PAID_KEY` env > default secret. An empty
+    result from any source fails loudly before claude launches.
 - `bin/fable` — same wrapper around `claude -p --model claude-fable-5` for
   one-off questions from any context.
 

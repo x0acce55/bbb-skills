@@ -1,13 +1,58 @@
 #!/bin/sh
 # claude-paid — full Claude Code session billed to Claude Platform on AWS
-# instead of the Max subscription. The 365-day CPA key is fetched from Secret
-# Manager into this session's env only (ADR-0020 rule-2 wrapper).
+# instead of the Max subscription (see claude-fallback/README.md).
+#
+# Key source (first match wins; all remaining args pass through to claude):
+#   claude-paid -k <key> ...           literal key — break-glass for when gcloud
+#                                      is unavailable. WARNING: a pasted key
+#                                      lands in shell history; prefer
+#                                      -k "$(<some command>)" or the env form.
+#   claude-paid -s <secret-name> ...   a different Secret Manager secret
+#                                      (same project/endpoint/workspace)
+#   CLAUDE_PAID_KEY=... claude-paid    key from env (set it via command
+#                                      substitution, never a pasted literal)
+#   claude-paid ...                    default: gcloud fetch of anthropic-api-key
 #
 # Bearer-only auth (ANTHROPIC_AUTH_TOKEN) is deliberate: the CPA endpoint
-# returns 401 when a request carries BOTH x-api-key and Authorization headers,
-# which is exactly what Claude Code's apiKeyHelper mechanism sends — so no
-# apiKeyHelper, no settings file. Default `claude` stays on the subscription.
-ANTHROPIC_AUTH_TOKEN="$(gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel)" \
+# returns 401 when both x-api-key and Authorization headers are present, which
+# is what Claude Code's apiKeyHelper sends — so no apiKeyHelper, no settings
+# file. Default `claude` stays on the subscription.
+
+PROJECT="secops-opintel"
+DEFAULT_SECRET="anthropic-api-key"
+KEY=""
+SECRET=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -k|--key)
+      [ $# -ge 2 ] || { echo "claude-paid: $1 needs a value" >&2; exit 64; }
+      KEY="$2"; shift 2 ;;
+    -s|--secret)
+      [ $# -ge 2 ] || { echo "claude-paid: $1 needs a value" >&2; exit 64; }
+      SECRET="$2"; shift 2 ;;
+    -h|--help)
+      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) break ;;
+  esac
+done
+
+if [ -n "$KEY" ] && [ -n "$SECRET" ]; then
+  echo "claude-paid: use -k or -s, not both" >&2; exit 64
+fi
+if [ -z "$KEY" ]; then
+  if [ -n "${CLAUDE_PAID_KEY:-}" ] && [ -z "$SECRET" ]; then
+    KEY="$CLAUDE_PAID_KEY"
+  else
+    KEY="$(gcloud secrets versions access latest --secret="${SECRET:-$DEFAULT_SECRET}" --project="$PROJECT")" || KEY=""
+  fi
+fi
+if [ -z "$KEY" ]; then
+  echo "claude-paid: no key obtained (gcloud unavailable? try -k, or CLAUDE_PAID_KEY)" >&2
+  exit 1
+fi
+
+ANTHROPIC_AUTH_TOKEN="$KEY" \
 ANTHROPIC_BASE_URL="https://aws-external-anthropic.us-east-1.api.aws" \
 ANTHROPIC_CUSTOM_HEADERS="anthropic-workspace-id: wrkspc_012NWagiqkWqfBCDGN7WAqUC" \
   exec claude "$@"
