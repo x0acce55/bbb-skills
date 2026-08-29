@@ -1,7 +1,9 @@
 #!/bin/sh
 # fable — one-off Fable 5 question from anywhere (local-model sessions, scripts),
-# billed to the Audacy API key. Key lives only in this process's env for the one
-# invocation (ADR-0020 rule-2 wrapper pattern).
-#   usage: fable "why is the sky blue"     (or pipe stdin with -)
-ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel)" \
+# billed to Claude Platform on AWS. Same Bearer-only wrapper as claude-paid
+# (see that file for why apiKeyHelper cannot be used with this endpoint).
+#   usage: fable "why is the sky blue"
+ANTHROPIC_AUTH_TOKEN="$(gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel)" \
+ANTHROPIC_BASE_URL="https://aws-external-anthropic.us-east-1.api.aws" \
+ANTHROPIC_CUSTOM_HEADERS="anthropic-workspace-id: wrkspc_012NWagiqkWqfBCDGN7WAqUC" \
   exec claude -p --model claude-fable-5 "$@"

@@ -1,6 +1,13 @@
 #!/bin/sh
-# claude-paid — full Claude Code session billed to the Audacy Anthropic Console
-# API key instead of the Max subscription. The key is fetched by apiKeyHelper at
-# call time (never on disk, never in env); see claude-fallback/README.md.
-# Default `claude` stays on the subscription — use this only when Max is out.
-exec claude --settings "$HOME/.claude/paid-settings.json" "$@"
+# claude-paid — full Claude Code session billed to Claude Platform on AWS
+# instead of the Max subscription. The 365-day CPA key is fetched from Secret
+# Manager into this session's env only (ADR-0020 rule-2 wrapper).
+#
+# Bearer-only auth (ANTHROPIC_AUTH_TOKEN) is deliberate: the CPA endpoint
+# returns 401 when a request carries BOTH x-api-key and Authorization headers,
+# which is exactly what Claude Code's apiKeyHelper mechanism sends — so no
+# apiKeyHelper, no settings file. Default `claude` stays on the subscription.
+ANTHROPIC_AUTH_TOKEN="$(gcloud secrets versions access latest --secret=anthropic-api-key --project=secops-opintel)" \
+ANTHROPIC_BASE_URL="https://aws-external-anthropic.us-east-1.api.aws" \
+ANTHROPIC_CUSTOM_HEADERS="anthropic-workspace-id: wrkspc_012NWagiqkWqfBCDGN7WAqUC" \
+  exec claude "$@"

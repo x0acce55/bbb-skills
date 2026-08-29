@@ -1,51 +1,66 @@
 # claude-fallback
 
 Paid fallback for Claude Code when the Max subscription runs out, plus one-off
-Fable 5 access from anywhere. Backend: Anthropic Console API key (Audacy org),
-stored as Secret Manager secret `anthropic-api-key` in `secops-opintel` —
-chosen over Bedrock because Fable 5 is not offered on Bedrock.
+Fable 5 access from anywhere. Backend: **Claude Platform on AWS** — the
+Anthropic-operated endpoint (`aws-external-anthropic.us-east-1.api.aws`), billed
+through AWS Marketplace, with same-day first-party API parity (`claude-fable-5`
+verified present). Not Amazon Bedrock — Bedrock is partner-operated and does
+not carry Fable 5.
 
 ## How it works
 
-- `paid-settings.json` carries an `apiKeyHelper` that fetches the key via
-  gcloud at call time (re-invoked every ~5 min or on 401). The key never rests
-  on disk, never sits in env, never enters agent context.
-- **The helper must NOT go in the main settings**: `apiKeyHelper` outranks
-  subscription OAuth in Claude Code's auth precedence, so putting it in
-  `~/.claude/settings.json` would bill every session to the API forever.
-  It lives in its own file, used only via `--settings`.
-- `bin/claude-paid` — full fallback session: `claude --settings ~/.claude/paid-settings.json`.
-- `bin/fable` — one-off `claude -p --model claude-fable-5` with the key in a
-  single invocation's env (ADR-0020 rule-2 wrapper).
-- Backend choice is launch-time only (verified): when Max runs out mid-session,
-  start a new session with `claude-paid`. The built-in alternative is the
-  `autoContinueAtUsageLimit` setting (wait for reset).
+Two PATH shims, no settings file:
 
-## Install (per machine — user-run; PATH executables and settings are human acts)
+- `bin/claude-paid` — full fallback session. Fetches the 365-day CPA key from
+  Secret Manager (`anthropic-api-key`, project `secops-opintel`) into that one
+  session's env as `ANTHROPIC_AUTH_TOKEN`, sets `ANTHROPIC_BASE_URL` and the
+  required `anthropic-workspace-id` header via `ANTHROPIC_CUSTOM_HEADERS`
+  (Claude Code ≥ 2.1.227), then `exec claude "$@"`.
+- `bin/fable` — same wrapper around `claude -p --model claude-fable-5` for
+  one-off questions from any context.
 
-1. `cp paid-settings.json ~/.claude/paid-settings.json`
-2. `cp bin/claude-paid bin/fable <a PATH dir>/` and `chmod +x` them
-   (macOS: /opt/homebrew/bin; Linux: ~/.local/bin; Windows Git Bash: ~/bin —
-   same targets as the twss shim).
-3. Requires gcloud installed and authenticated as yourself, with
-   `secretmanager.versions.access` on the secret.
-4. Test without touching the subscription: `claude-paid -p "reply OK" --model haiku`
-   (~fractions of a cent, billed to the key).
+Default `claude` stays on the Max subscription; backend choice is launch-time
+only (verified — no mid-session switching).
+
+## Why NOT apiKeyHelper (the hard-won part)
+
+The obvious design — an `apiKeyHelper` in a `--settings` file — **cannot work
+against this endpoint**: Claude Code sends helper output in BOTH the
+`Authorization: Bearer` and `x-api-key` headers, and the CPA endpoint returns
+**401 whenever both are present** (verified by probe: x-api-key alone 200,
+Bearer alone 200, both 401). `ANTHROPIC_AUTH_TOKEN` sends Bearer only, and —
+unlike `ANTHROPIC_API_KEY` — carries no one-time interactive approval prompt,
+so `-p` works non-interactively.
+
+## Other gotchas
+
+- **Probe the endpoint the key belongs to.** A CPA key against
+  `api.anthropic.com` returns `invalid x-api-key` — wrong door, not a bad key.
+  Working probe shape:
+  `curl -s -H "x-api-key: <key>" -H "anthropic-version: 2023-06-01" -H "anthropic-workspace-id: <wrkspc>" https://aws-external-anthropic.us-east-1.api.aws/v1/models`
+- Model IDs are bare first-party strings (`claude-fable-5`) — no `anthropic.` prefix.
+- The workspace ID is not a secret; it lives in the shims plainly.
 
 ## Key lifecycle
 
-- Create/rotate in the Audacy Anthropic Console (human act), then:
-  `pbpaste | gcloud secrets versions add anthropic-api-key --data-file=- --project=secops-opintel`
-  (first time: `gcloud secrets create` instead) — and clear the clipboard.
-  Disable the old key in the Console; the helper picks up the new version
-  within its ~5-minute TTL.
-- Fable 5 requires 30-day data retention — not available under zero-data-retention orgs.
+- The key is a **long-term (365-day) CPA key**, minted in the Claude console of
+  the AWS account. Rotate before expiry (set a reminder): mint a new one, then
+  `pbpaste | gcloud secrets versions add anthropic-api-key --data-file=- --project=secops-opintel`,
+  clear the clipboard, disable the old key in the console, destroy the old
+  secret version. Shims always read `latest`.
+- **Zero-standing-secret alternative** (stricter, not currently used): CPA also
+  mints short-term keys (≤12h) from AWS credentials
+  (`pip install token-generator-for-aws-external-anthropic`); a shim could mint
+  per invocation instead of fetching from Secret Manager, at the cost of
+  requiring a live AWS SSO session. Revisit with the agent-service-account /
+  federation work.
 
-## Deferred: Bedrock lane
+## Install (per machine — user-run; PATH executables are human acts)
 
-Fable 5 absent on Bedrock (verified 2026-08-29). If an AWS-billed Opus 5 lane
-is ever wanted: Claude Code honors SSO profiles + `awsAuthRefresh` natively —
-zero standing credentials, strictly better than an IAM user with a stored key.
-The IAM-user chain only earns its place for headless agents; revisit with the
-workforce-federation / agent-service-account work. Note: AWS CLI must be
-≥ 2.13 for `bedrock` commands.
+1. `cp bin/claude-paid bin/fable <a PATH dir>/` and `chmod +x` them
+   (macOS: /opt/homebrew/bin; Linux: ~/.local/bin; Windows Git Bash: ~/bin).
+2. Requires gcloud installed and authenticated as yourself, with
+   `secretmanager.versions.access` on the secret.
+3. Test without touching the subscription: `claude-paid -p "reply OK" --model haiku`.
+4. If a `~/.claude/paid-settings.json` exists from the v2 design, delete it —
+   it is obsolete and its apiKeyHelper breaks against this endpoint.
