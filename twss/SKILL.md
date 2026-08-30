@@ -6,32 +6,56 @@ argument-hint: "the commands/task to queue, or 'status' / 'clear'"
 
 Run a user-approved queue of shell commands without per-command permission
 prompts. The enforcement is NOT this skill — it is the PreToolUse hook
-(`.claude/hooks/twss.py`, registered in `.claude/settings.json`). This skill is
-only the workflow around it. If the hook is not installed, say so and stop;
-never simulate it.
+(`.claude/hooks/twss.py`, registered in `.claude/settings.local.json` or
+`.claude/settings.json`). This skill is only the workflow around it. If the
+hook is not installed, say so and stop; never simulate it and never install it
+yourself.
 
 ## First run (per machine)
 
-Check that the hook and the `twss` command exist: run `twss status` (Bash). If
-the command is missing or the hook is unregistered, walk the user through setup
-— the user runs these steps, not the agent, because PATH executables, hooks,
-and settings are enforcement surface (agents are expected to be blocked from
-them; that is the same rule that keeps `approve` human):
+**Decide installed-or-not by reading files, never by running `twss`.** A
+`twss: command not found` proves nothing: the shim directory is often absent
+from an already-open shell's stale PATH while the hook itself is registered and
+working. Installed means both of:
 
-1. Copy `twss.py` (from this skill's folder) to `<vault>/.claude/hooks/twss.py`
-   and merge the hook registration into `<vault>/.claude/settings.json` — the
-   exact JSON is printed by step 2's installer when missing. Use `python`
-   instead of `python3` in the hook command on Windows.
-2. User runs the installer (via the `!` prefix):
-   - macOS/Linux: `! python3 <skill-dir>/install.py`
-   - Windows (Git Bash): `! python <skill-dir>/install.py`
-   It writes a `twss` shim into a PATH directory per OS (macOS:
-   /opt/homebrew/bin or /usr/local/bin or ~/.local/bin; Linux: ~/.local/bin;
-   Windows: %USERPROFILE%\bin plus twss.cmd for cmd/PowerShell), shell-agnostic
-   because it is a PATH executable, not an alias. `TWSS_INSTALL_DIR` overrides
-   the target. Idempotent; re-run any time.
-3. `python3 <skill-dir>/test_twss.py` once to prove the environment, then
-   `/hooks` (or restart) so the session reloads hook config.
+1. `<vault>/.claude/hooks/twss.py` exists.
+2. Some `<vault>/.claude/settings*.json` has a `PreToolUse` entry whose command
+   contains `twss.py` — Grep for `twss.py` under `.claude/`, checking
+   `settings.local.json` as well as `settings.json`.
+
+If both hold it is installed: proceed to the workflow, and if the `twss`
+command is missing anyway, use the long form
+`python "<vault>/.claude/hooks/twss.py" status` and tell the user a new
+terminal will have `twss` on PATH.
+
+If either is missing, **print exactly one line for the user to run, then
+stop.** Do not copy the hook, edit settings, or write a shim yourself, and do
+not read the implementation to work out how to wire it — hooks, settings, and
+PATH executables are enforcement surface, and an agent installing its own
+permission bypass defeats the point. The installer is one idempotent command
+that does every step (copies the hook, registers it in `settings.local.json`
+pinned to the running interpreter, writes the shims, adds the Windows PATH
+entry, runs the acceptance suite):
+
+- macOS/Linux: `! python3 <skill-dir>/install.py`
+- Windows: `! python <skill-dir>/install.py` — if that prints "Python was not
+  found", `python` is the Microsoft Store stub; use `! py <skill-dir>/install.py`
+
+Then the user reloads hook config with `/hooks` (or restarts the session):
+until they do, the hook is on disk but not live here.
+
+The installer validates an existing registration rather than trusting it, and
+exits 2 if it is unhealthy — a dead interpreter (the hook then fails closed, so
+twss silently never allows anything and the user is prompted for every line
+despite approving), or a registration sitting in the syncing `settings.json`
+where a machine-specific interpreter path does not belong. It reports the
+problem and leaves it alone; `--repair` rewrites it into `settings.local.json`
+pinned to the running interpreter. Report an exit 2 to the user with the
+installer's own diagnosis and let them decide — never repair on their behalf.
+
+Flags: `--repair` (fix an unhealthy registration), `--no-test` (skip the
+acceptance suites), `--no-path` (leave the Windows user PATH alone);
+`TWSS_INSTALL_DIR` overrides the shim directory.
 
 ## Workflow
 
@@ -42,8 +66,9 @@ them; that is the same rule that keeps `approve` human):
 2. **Show the user the numbered list** and ask them to approve by running (via
    the `!` prefix, themselves — NEVER run this yourself):
    `! twss approve`
-   (long form if the shim isn't installed: `! python3 .claude/hooks/twss.py approve`;
-   `python` on Windows)
+   (if that reports command-not-found, the shim is not on this shell's PATH —
+   give the long form instead: `! python3 .claude/hooks/twss.py approve`, or
+   `python` / `py` on Windows. Do not treat it as "not installed".)
 3. **Execute after approval**, sequentially, one Bash call per queue line,
    copying each command byte-for-byte from the queue file — any deviation
    (extra space, added flag) will not match and will prompt normally. Stop on
