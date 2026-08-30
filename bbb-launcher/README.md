@@ -108,12 +108,17 @@ So the first launch of every domain on every machine has to be interactive —
 | `permissions.deny` | applies | headless probe, 2026-08-29 |
 | `sandbox` | applies | headless probe, 2026-08-29 |
 | `permissions.allow` | **silently ignored** | headless probe, 2026-08-29 |
-| `autoMode`, `enabledMcpjsonServers` | unverified | — |
+| `enabledMcpjsonServers` / `.mcp.json` | **applies** | live untrusted session, 2026-08-30 |
+| `autoMode` | unverified | — |
 
 Fail-safe, but confusing in practice: grants you can read in the generated file
 simply do not fire, and the session prompts for commands the fragment already
 allows. **If a domain session keeps asking permission for something you know is
 granted, check trust before you debug the fragment.**
+
+MCP is decided by **directory scope, not trust**: a session whose cwd is the domain
+folder gets its `.mcp.json` servers even with the trust flag false. Only the grants
+evaporate.
 
 Trust is recorded in `~/.claude.json` under
 `projects["<abs-path>"].hasTrustDialogAccepted`. Read it to check the state.
