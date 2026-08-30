@@ -129,7 +129,9 @@ labelling.
 
 ## Why the trailer goes in the squash message
 
-`tf-org-v2` squashes as standing practice, carrying `[skip ci]` in the squash message.
+`tf-org-v2` is `merge_method: rebase_merge` with `squash_option: default_off` — verified
+via the API 2026-08-30, correcting an earlier draft of this file that called squash
+standing practice. Squash is opt-in per MR, notably for the `[skip ci]` flow.
 A trailer on a branch commit does not survive a squash merge unless it is in the squash
 message itself. GitLab pre-fills that field from MR creation and it carries through
 unless a human overrides it at merge — so creation time is the only reliable moment to
@@ -179,7 +181,8 @@ state for the data with far less friction.
 | Four IAM primitives | `tf-org-v2 README.md` § Concepts |
 | PS grants nothing until assigned | `tf-org-v2 README.md:11-14` |
 | Grants go to groups, never users | `tf-org-v2 README.md:11-12` |
-| Squash is standing practice | `tf-org-v2 AGENTS.md` — 8 references |
+| tf-org-v2 is rebase_merge, squash opt-in | GitLab projects API, 2026-08-30 |
+| HEAD after merge is never the trailer commit | live MR in nslt-20260830, 2026-08-30 |
 | One ticket spans several MRs | `tf-org-v2 README.md:40-46` |
 | GCP IAM lives in `<env>/iam/` | `tf-gcp-*` terragrunt layout |
 | 44 of 46 IAM files are outside `**/iam/**` | content grep vs path glob across the workspace |

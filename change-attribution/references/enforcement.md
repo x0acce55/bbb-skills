@@ -131,9 +131,18 @@ attribution:trailer-present:
   allow_failure: true
   script:
     - |
-      if ! git log -1 --format=%B | grep -q '^Change-Origin:'; then
-        echo "WARNING: merged commit carries no Change-* trailers."
-        echo "The squash message was probably edited at merge time."
+      # HEAD is NOT the commit carrying the trailer on merge_method=merge or
+      # rebase_merge projects — it is GitLab's own merge commit, whose message is a
+      # template. Probe-verified 2026-08-30: knowledge-artifacts is `merge`,
+      # tf-org-v2 is `rebase_merge`, and `git log -1` false-alarms on both.
+      # Scan the commits this push actually introduced instead.
+      RANGE="${CI_COMMIT_BEFORE_SHA}..${CI_COMMIT_SHA}"
+      case "$CI_COMMIT_BEFORE_SHA" in
+        0000000000000000000000000000000000000000|"") RANGE="${CI_COMMIT_SHA}~5..${CI_COMMIT_SHA}" ;;
+      esac
+      if ! git log --format=%B "$RANGE" 2>/dev/null | grep -q '^Change-Origin:'; then
+        echo "WARNING: no Change-* trailers in the commits this merge introduced."
+        echo "The squash or branch commit message was probably edited at merge time."
         echo "The MR labels still hold the attribution; the in-repo record does not."
       fi
 ```

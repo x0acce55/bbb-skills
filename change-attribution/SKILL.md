@@ -166,9 +166,9 @@ group is two, deleting a permission set is up to three. So:
 4. Create the MR with all applicable labels **and** `squash_commit_message` set at
    creation time, carrying the `Change-*` trailers.
 
-Step 4 matters more than it looks. `tf-org-v2` squashes as standing practice, and a
-trailer on a branch commit does not survive a squash merge unless it is in the squash
-message. GitLab pre-fills that field from what the MR was created with and it carries
+Step 4 matters more than it looks. Squash is opt-in per MR in `tf-org-v2` (`squash_option: default_off`), and its merge
+method is `rebase_merge` — so the trailer lands in a rebased branch commit or a squash
+commit depending on the MR, and never in the merge commit GitLab writes on top. GitLab pre-fills that field from what the MR was created with and it carries
 through unless a human overrides it at merge time — so setting it at creation is the
 only reliable moment. If someone edits it at merge, the labels still stand and the
 trailer is lost; CI notices after the fact and warns.

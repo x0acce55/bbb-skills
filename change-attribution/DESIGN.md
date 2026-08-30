@@ -127,9 +127,10 @@ got a ticket.
 
 ### Trailers go in the squash message
 
-`tf-org-v2` squashes as standing practice, carrying `[skip ci]` in the squash message. A
-trailer on a branch commit does **not** survive a squash merge unless it is in the squash
-message itself. GitLab pre-fills that field from MR creation and it carries through unless
+`tf-org-v2` uses `merge_method: rebase_merge` with `squash_option: default_off` — squash
+is enabled per MR, notably for the `[skip ci]` flow. Either way GitLab writes a merge
+commit on top whose message is a template, so the trailer never lands on HEAD, and a
+trailer omitted from a squash message is lost entirely. GitLab pre-fills that field from MR creation and it carries through unless
 a human overrides it at merge — so creation time is the only reliable moment to set it.
 
 The label survives regardless, which is why a lost trailer degrades the record rather than
