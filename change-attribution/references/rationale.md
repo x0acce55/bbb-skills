@@ -178,8 +178,38 @@ works — our trailer names the resource and NorthStar is queried by that name �
 requires NorthStar to read anything we write. That independence is worth more than the
 elegance of the label mapping it replaces.
 
-Still open with NorthStar: whether they can consume a principal alongside the name for
-IAM-shaped changes. That is an enhancement, not a blocker.
+### The MR half already works
+
+`search_tables` confirms no table anywhere exposes GCP resource-label key/values — but it
+also shows `gitlab_issue.labels`, which means **NorthStar ingests GitLab labels**. So
+`origin::secops`, `iam::group` and `ticket::ZD-12345` are consumable by NorthStar today,
+with no work from them. The half of the join that looked speculative is the half that
+already works; only the cloud-resource half needed replacing.
+
+Beware two lookalikes: `unified_ticket` normalized tags are work-item tags, and
+`gcp_folder` tag inheritance is Resource-Manager Tags bound by org policy — neither is the
+free-form resource label being set here.
+
+### Do not bake attribution into resource names
+
+The obvious move from NorthStar's side is to encode the ticket into the resource name so
+the join needs no trailer at all. Reject it:
+
+- Names in these repos are conventional, load-bearing and length-constrained.
+- A name is immutable in practice — a re-ticketed change cannot rename a live resource
+  without destroy-and-recreate, which for a permission set is explicitly forbidden.
+- It couples cloud naming to a ticketing system, so a tracker migration would invalidate
+  every name encoding one.
+
+The trailer already carries the association and costs nothing to change. Attribution
+belongs in the record, not in the resource.
+
+### Still open
+
+Whether NorthStar ingests **merge requests** at all — `gitlab_issue` is an issue table,
+and MR coverage is unknown. That question now matters more than any remaining latency
+number, and should be asked before anything else. Also open: whether they parse commit
+trailers, and whether a principal can accompany the name for IAM-shaped changes.
 
 ## Why `pe:iac-request` is left alone
 
@@ -211,5 +241,7 @@ state for the data with far less friction.
 | Compute instances ingest in <8 min | live measurement, 2026-08-30 |
 | Bindings/buckets/SAs slower than compute | same measurement |
 | gcp_compute_instance has no labels column | `describe_table`, 2026-08-30 |
+| No table exposes GCP resource labels | `search_tables`, 2026-08-30 |
+| NorthStar ingests GitLab labels | `gitlab_issue.labels`, 2026-08-30 |
 | NorthStar ingestion 1–2 days stale | `northstar-mcp-capability-map.md:25` |
 | PE and DevOps are one team | jira skill description; marketplace owner email |

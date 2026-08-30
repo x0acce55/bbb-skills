@@ -171,7 +171,13 @@ Name is what `search_resources` resolves, and what an engineer already writes in
 Terraform. The join then runs in the direction that works: our trailer names the resource,
 NorthStar is queried by that name, and nothing requires NorthStar to read what we write.
 
-`Change-Principal` remains open for IAM-shaped changes — an enhancement, not a blocker.
+**The MR half of the join already works.** `gitlab_issue.labels` is an ingested table, so
+`origin::`, `iam::` and `ticket::` are consumable by NorthStar today with no work from
+them. Only the cloud-resource half needed solving, and the name solves it.
+
+Open: whether NorthStar ingests merge requests at all (`gitlab_issue` is an *issue*
+table), whether they parse commit trailers, and whether a principal can accompany the name
+for IAM-shaped changes. The first of those now matters more than any latency number.
 
 ## Enforcement
 
