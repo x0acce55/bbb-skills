@@ -77,11 +77,48 @@ repo. It:
    binds every tier, ADR-0020,
 4. symlinks `bbb` into `/opt/homebrew/bin` (adjust on non-Homebrew machines).
 
+It does **not** trust the domain folders — that is interactive and per machine.
+See **Trust each domain once** below; until it is done the generated grants do
+not fire.
+
 Requires `jq` and a machine already registered via `bbb-vault-setup` (the
 install reads `BBB_MACHINE_ID` from the vault's `.claude/settings.local.json`).
 
 **Windows:** `bbb.ps1` does not exist yet. Until it does, prove-desktop-win
 launches sessions the old way; watch the vault's cross-machine-actions note.
+
+## Trust each domain once (required)
+
+`bbb install` is not enough on its own. Claude Code **silently ignores
+`permissions.allow` from a project's `.claude/settings.json` until that folder
+has been trusted**, and trust is per folder, per machine, and granted
+interactively:
+
+```
+Ignoring 6 permissions.allow entries from .claude/settings.json:
+this workspace has not been trusted.
+```
+
+So the first launch of every domain on every machine has to be interactive —
+`bbb <domain>` — with the trust dialog accepted. Until then the session is
+*more* restricted than designed, not less:
+
+| Layer | Untrusted folder | Verified by |
+| --- | --- | --- |
+| `permissions.deny` | applies | headless probe, 2026-08-29 |
+| `sandbox` | applies | headless probe, 2026-08-29 |
+| `permissions.allow` | **silently ignored** | headless probe, 2026-08-29 |
+| `autoMode`, `enabledMcpjsonServers` | unverified | — |
+
+Fail-safe, but confusing in practice: grants you can read in the generated file
+simply do not fire, and the session prompts for commands the fragment already
+allows. **If a domain session keeps asking permission for something you know is
+granted, check trust before you debug the fragment.**
+
+Trust is recorded in `~/.claude.json` under
+`projects["<abs-path>"].hasTrustDialogAccepted`. Read it to check the state.
+Setting it by hand is granting yourself enforcement — a human action, not an
+agent one.
 
 ## Sandbox posture
 
@@ -97,3 +134,28 @@ Admin sessions (vault root) are deliberately unsandboxed and carry no
 governance denies — that's the privileged tier doing its job. The honesty
 clause from ADR-0019 stands: tiers are guardrails against accident, not a
 security boundary.
+
+## Smoke test
+
+`sandbox-smoke-test.sh` proves a domain session really is sandboxed, that its
+write boundary holds, and that the credential and network workflows survive
+Seatbelt. Run it inside the domain session, after accepting trust:
+
+```sh
+sh bbb-launcher/sandbox-smoke-test.sh \
+  --project secops-opintel \
+  --secret tines-api-credentials \
+  --url https://crimson-cloud-7047.tines.com/
+```
+
+`--secret` and `--url` may each repeat; all secrets share one `--project`. Both
+are optional — with no arguments it still checks the sandbox and the write
+boundary.
+
+The first block is a control test: it tries to write to `$HOME` and declares the
+whole run VOID if that succeeds, because an unsandboxed session passes every
+other check trivially. Exit 0 means the sandbox was active and nothing behaved
+unexpectedly; exit 1 means read the UNEXPECTED / FAILED / VOID lines.
+
+The secret test never prints a value — stdout goes to `/dev/null`, and only the
+exit code and stderr are reported (ADR-0020). Keep it that way.
