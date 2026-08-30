@@ -9,7 +9,7 @@ not carry Fable 5.
 
 ## How it works
 
-Two PATH shims, no settings file:
+Two PATH shims, no settings file (plus an optional status line, below):
 
 - `bin/claude-paid` — full fallback session. Fetches the 365-day CPA key from
   Secret Manager (`anthropic-api-key`, project `secops-opintel`) into that one
@@ -50,6 +50,70 @@ so `-p` works non-interactively.
 - Model IDs are bare first-party strings (`claude-fable-5`) — no `anthropic.` prefix.
 - The workspace ID is not a secret; it lives in the shims plainly.
 
+## Live spend status line
+
+`statusline/claude-cost.py` — a Claude Code status line showing what the current
+session is costing and whether that is real money:
+
+```
+PAID $22.33  ·  today $27.72  ·  Fable 5  ·  ctx 34%  ·  cache 91%
+sub ~$9.40   ·  today $27.72  ·  Opus 5   ·  ctx 47%
+```
+
+Bold red `PAID` = this session bills to CPA. Dim `sub ~$` = the Max
+subscription, priced anyway so you can watch a session get expensive *before*
+you fall back to paid. `today $` is CPA spend across all sessions for the
+current **UTC** day, matching how Cost Explorer buckets.
+
+**Why it parses the transcript** instead of using the harness's own
+`cost.total_cost_usd`: that field is a single list-price number with no
+billing-path split, and the split is the whole point. Two deliberately redundant
+detection paths:
+
+- `ANTHROPIC_BASE_URL` containing `aws-external-anthropic` — set by the shims,
+  so the badge is correct from turn one, before any tokens are spent.
+- per message, `usage.inference_geo` — `global` on CPA, `not_available` on the
+  subscription. Empirically the *only* transcript field separating the two:
+  model id, `req_`/`msg_` prefixes, `service_tier` and `version` are identical
+  on both paths.
+
+**Accuracy.** CPA has no programmatic usage API — Anthropic documents the Admin
+`usage_report` / `cost_report` endpoints as unavailable for Claude Platform on
+AWS, so per-key data is Console-only and local pricing is the only real-time
+source that exists. Reconcile against Cost Explorer: service `"Claude Platform"`,
+usage type `MP:ccu-Units` (1 unit = $0.01), UTC daily buckets, in the CPA
+account. Measured 2026-08-30: a session the meter billed at **$27.00** priced
+locally at **~$23**. The ~15% gap matches the 5m→1h cache-write premium almost
+exactly, so writes appear to bill at the 1h rate even though
+`usage.cache_creation` reports them under `ephemeral_5m_input_tokens`. Set
+`CLAUDE_COST_WRITES_1H=1` to price them that way, or
+`CLAUDE_COST_CALIBRATION=1.15` for a flat multiplier. The default is
+as-recorded — a defensible number rather than a tuned one.
+
+**Implementation notes** (each one cost a bug):
+
+- **Dedupe by `message.id`.** Claude Code writes repeated records for the same
+  message within one transcript — 188 records for 73 unique messages in the
+  measured session — so an undeduped sum roughly doubles.
+- **Subagent transcripts** live in `<transcript-without-.jsonl>/subagents/*.jsonl`
+  and bill too.
+- **Never call `fh.tell()` inside `for line in fh`.** Python raises
+  `OSError: telling position disabled by next() call`, which a broad
+  `except OSError` swallows into a silent `$0.00` that looks like it works.
+  Read the delta as bytes and advance the offset arithmetically.
+- **Bucket by each record's own timestamp**, not by when the script runs, or a
+  session resumed across midnight UTC dumps its entire history onto today.
+
+Cost is dominated by cache *reads*: 11.4M read tokens (~$11) against 567K writes
+(~$7) and 89K output (~$4.50) in the measured session. The driver is context size
+re-read every turn, not output volume.
+
+Performance: 59 ms cold on a 2.2 MB transcript, 39 ms warm (mostly interpreter
+startup), via per-session byte offsets cached in `~/.claude/statusline/cache/`.
+
+Known limits: the daily rollup is last-writer-wins across concurrent sessions
+(self-heals on the next refresh), and all state is machine-local.
+
 ## Key lifecycle
 
 - The key is a **long-term (365-day) CPA key**, minted in the Claude console of
@@ -73,3 +137,9 @@ so `-p` works non-interactively.
 3. Test without touching the subscription: `claude-paid -p "reply OK" --model haiku`.
 4. If a `~/.claude/paid-settings.json` exists from the v2 design, delete it —
    it is obsolete and its apiKeyHelper breaks against this endpoint.
+5. Status line (optional, independent of the shims):
+   `python3 statusline/install.py` — on Windows `python`, never `python3`, which
+   is the Store stub there. It copies the script to `~/.claude/statusline/`,
+   smoke-tests it, and prints the `statusLine` JSON to merge into
+   `~/.claude/settings.json`. Like the twss installer it never edits settings
+   itself. Merge it (keep your other keys), then `/statusline` or restart.
