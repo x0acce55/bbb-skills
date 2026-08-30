@@ -9,5 +9,22 @@
       "url": "https://audacy.northstar.security/api/mcp?toolsets=resources,inventory"
     }
   },
-  "enabledMcpjsonServers": ["gitlab", "northstar-resources-inventory"]
+  "enabledMcpjsonServers": ["gitlab", "northstar-resources-inventory"],
+"permissions": {
+  "allow": [
+    "Bash(curl *crimson-cloud-7047.tines.com*)",
+    "Bash(curl *audacytechnicalservices.zendesk.com*)",
+    "Bash(gcloud secrets versions access latest --secret=tines-api-credentials --project=secops-opintel)",
+    "Bash(gcloud secrets versions access latest --secret=zendesk-api-credentials --project=secops-opintel)",
+    "Bash(gcloud secrets versions access latest --secret=tines-api-credentials --project=secops-opintel | jq -r .api_key)",
+    "Bash(jq *)"
+  ]
+},
+"autoMode": {
+  "allow": [
+    "$defaults",
+    "curl requests (any HTTP method, reads and writes) to https://crimson-cloud-7047.tines.com — the user's own Tines automation tenant; explicitly approved by the user, including compound commands that first fetch the API key from GCP Secret Manager",
+    "curl requests (any HTTP method, reads and writes) to https://audacytechnicalservices.zendesk.com — the user's own Zendesk instance API; explicitly approved by the user, including compound commands that first fetch credentials from GCP Secret Manager"
+  ]
+}
 }
