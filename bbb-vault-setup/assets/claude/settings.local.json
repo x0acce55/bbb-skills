@@ -5,6 +5,6 @@
     "BBB_MACHINE_ID": "REPLACE_WITH_MACHINE_ID",
     "BBB_VAULT_ID": "REPLACE_WITH_VAULT_ID",
     "BBB_SETUP_SKILL": "bbb-vault-setup",
-    "BBB_SETUP_SOURCE": ""
+    "BBB_SETUP_SOURCE": "github-bbb-agent:x0acce55/bbb-skills.git"
   }
 }

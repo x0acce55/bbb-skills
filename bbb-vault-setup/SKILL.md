@@ -101,7 +101,7 @@ identifiers from Step 1:
     "BBB_MACHINE_ID": "desktop-win",
     "BBB_VAULT_ID": "bbb",
     "BBB_SETUP_SKILL": "bbb-vault-setup",
-    "BBB_SETUP_SOURCE": ""
+    "BBB_SETUP_SOURCE": "github-bbb-agent:x0acce55/bbb-skills.git"
   }
 }
 ```
@@ -110,9 +110,11 @@ Windows paths are doubled-backslashed because the file is JSON. On macOS or Linu
 plain absolute path or one starting with `~/`.
 
 `env` values are exported into the session, so `$BBB_VAULT_ROOT` is available to any
-command the agent runs and the vault becomes locatable from any working directory. Leave
-`BBB_SETUP_SOURCE` empty until the skill is published to git; see
-`references/claude-code-config.md` for what fills it in later.
+command the agent runs and the vault becomes locatable from any working directory.
+`BBB_SETUP_SOURCE` is the clone URL this skill came from: the bbb-skills repo through
+the standard per-machine host alias, `github-bbb-agent:x0acce55/bbb-skills.git` (see
+the vault's machine-onboarding note, § Skills repo and SSH key). `verify_setup.py`
+warns while it is empty.
 
 Then create `memories/<machine-id>/`, copy `assets/gitignore` to `<vault>/.gitignore` if
 the vault is a git repo, and confirm with `verify_setup.py` that it now exits 0.

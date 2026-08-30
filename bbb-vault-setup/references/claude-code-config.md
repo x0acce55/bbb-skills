@@ -54,18 +54,24 @@ will help.
 ## Auto memory into the vault
 
 By default Claude Code writes its own memory to `~/.claude/projects/<project>/memory/`,
-machine-local and outside the vault. Redirect it with `autoMemoryDirectory`.
-
-Write `C:\Users\Admin\Obsidian\big-beatiful-brain\BBB\.claude\settings.json`:
+machine-local and outside the vault. Redirect it with `autoMemoryDirectory` in
+`.claude/settings.local.json`, pointed at this machine's own buffer:
 
 ```json
 {
-  "autoMemoryDirectory": "C:\\Users\\Admin\\Obsidian\\big-beatiful-brain\\BBB\\memories"
+  "autoMemoryDirectory": "C:\\Users\\Admin\\Obsidian\\big-beautiful-brain\\BBB\\memories\\desktop-win"
 }
 ```
 
 Backslashes are doubled because this is JSON, where a single backslash escapes the next
 character. The value must be an absolute path or start with `~/`.
+
+Two things about that placement are load-bearing. The vault syncs, so each machine
+writes only its own `memories/<machine-id>/` subdirectory — two machines sharing one
+memory directory would conflict on `MEMORY.md` (see `references/memory-protocol.md`).
+And the key must sit in `settings.local.json`, not the checked-in project
+`settings.json`: it differs per machine, and Claude Code ignores `autoMemoryDirectory`
+in checked-in project settings for security — put it there and it configures nothing.
 
 What this gets you: Claude writes `MEMORY.md` plus one topic file per memory, into the
 vault, as plain markdown that Obsidian will index and that the user can read and edit.
@@ -75,15 +81,12 @@ What to know about it:
 - `MEMORY.md` is an index. Its first 200 lines (or 25KB) load at the start of every
   session; topic files are read on demand. It is the same pattern as the project index
   notes, arrived at independently.
-- Auto memory is designed to be machine-local. Putting it in a vault that syncs to other
-  devices breaks that assumption — two machines writing the same `MEMORY.md` will
-  conflict. Worth an ADR if the vault ever syncs.
 - Claude Code excludes the memory directory from its transcript retention cleanup, so
   these files persist until someone deletes them.
 - Claude Code adds a `modified` timestamp to memory files that already have
   frontmatter, and never adds frontmatter to a file that has none. Seed `MEMORY.md`
   with a frontmatter block to get timestamps.
-- To turn it off for this vault: `"autoMemoryEnabled": false` in the same file.
+- To turn it off for this machine: `"autoMemoryEnabled": false` in the same file.
 
 ## Enforcement
 
@@ -103,8 +106,8 @@ Settings layer: managed → user → project → local, with later layers winnin
 who opens it. Note that *how* it reaches other machines depends on the sync mechanism:
 Obsidian Sync never syncs hidden files or folders, so nothing under `.claude/`
 propagates through it — every machine gets this file from the setup skill, which is why
-publishing the skill (ADR-0013's Open item) is the actual distribution mechanism for
-shared config. Under git, the file syncs normally.
+the published bbb-skills repo (ADR-0013's Open item, since closed) is the actual
+distribution mechanism for shared config. Under git, the file syncs normally.
 
 **`.claude/settings.local.json`** — this machine only, never synced. Holds
 `autoMemoryDirectory` and the `env` block:
@@ -117,7 +120,7 @@ shared config. Under git, the file syncs normally.
     "BBB_MACHINE_ID": "<machine-id>",
     "BBB_VAULT_ID": "<vault-id>",
     "BBB_SETUP_SKILL": "bbb-vault-setup",
-    "BBB_SETUP_SOURCE": ""
+    "BBB_SETUP_SOURCE": "github-bbb-agent:x0acce55/bbb-skills.git"
   }
 }
 ```
@@ -162,8 +165,8 @@ when no vault is found.
 
 Those exit codes exist so the check can eventually be automated. Right now it is a
 manual check that reports what it finds — that is deliberate, because the automated
-version should not be wired up until the skill is published and the conventions have
-stopped moving.
+version should not be wired up until the conventions have stopped moving (the skill
+is published now, so that is the remaining gate).
 
 When you are ready for that, the mechanism is a `SessionStart` hook, not a setting:
 `settings.local.json` cannot fetch anything, it only holds configuration. A `SessionStart`
@@ -175,8 +178,10 @@ filters on the source (`startup`, `resume`, `clear`, `compact`). And adding an `
 to a non-tool event like `SessionStart` silently prevents the hook from running at all,
 which is a confusing failure to debug.
 
-Set `BBB_SETUP_SOURCE` to the repository URL once it exists. `verify_setup.py` reports it
-and currently warns when it is empty; that warning is the placeholder for this work.
+`BBB_SETUP_SOURCE` is set at registration to the machine's clone URL of the bbb-skills
+repo — `github-bbb-agent:x0acce55/bbb-skills.git` through the standard host alias.
+`verify_setup.py` reports it and warns when it is empty; a machine registered before
+the repo existed should backfill it.
 
 ## Related settings worth knowing
 
