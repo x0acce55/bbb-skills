@@ -3,7 +3,31 @@
 Nothing in this file is applied by the skill. Labels, CI jobs and group settings are
 enforcement surface: an agent proposes them, a human applies them.
 
-## 1. Scoped labels at the `audacy-inc` group level
+## 1. Scoped labels at the `audacy-inc` group level — DONE 2026-08-30
+
+**Applied.** All eight labels exist at group level on `audacy-inc`. `ticket::` values are
+not pre-seeded — they are open-ended and created on first use. The commands below are
+kept for a rebuild or for another namespace.
+
+Exclusivity was verified empirically rather than assumed, on a throwaway issue since
+deleted:
+
+| Step | Action | Resulting labels |
+| --- | --- | --- |
+| 1 | create with `origin::secops` | `origin::secops` |
+| 2 | add `origin::pe` (same scope) | `origin::pe` — secops displaced |
+| 3 | add `iam::group` (other scope) | `iam::group`, `origin::pe` — coexist |
+| 4 | add `iam::user` (same scope) | `iam::user`, `origin::pe` — group displaced |
+
+Both properties the scheme depends on hold: same-scope values displace, cross-scope values
+accumulate. The namespace is on the `ultimate` plan (`GET /namespaces/audacy-inc`), so
+scoped labels are not at risk from a tier change.
+
+Note for whoever runs these: `glab` holds the token in the OS keyring, so the API calls
+below never put a credential on a command line or in a file (ADR-0020). Do not rewrite
+them to use a `PRIVATE-TOKEN` header with a token you had to read first.
+
+### Rebuild commands
 
 Define once at the top-level group so all projects inherit. Project-level labels would
 mean recreating this vocabulary in 187+ repos and keeping them in sync.
@@ -12,27 +36,21 @@ Requires Owner on `audacy-inc`. In the GitLab UI: **Group → Manage → Labels 
 or via the API:
 
 ```sh
-# set GITLAB_TOKEN in your shell; do not write it to a file
-GROUP=audacy-inc
-
 create() {  # $1 = name, $2 = colour, $3 = description
-  curl -sS --request POST \
-    --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-    --url "https://gitlab.com/api/v4/groups/$GROUP/labels" \
-    --data-urlencode "name=$1" \
-    --data-urlencode "color=$2" \
-    --data-urlencode "description=$3" >/dev/null && echo "ok  $1"
+  glab api --method POST "groups/audacy-inc/labels" \
+    -f "name=$1" -f "color=$2" -f "description=$3" >/dev/null && echo "ok  $1"
 }
 
-create "origin::secops"          "#0E6B60" "Change produced by the SecOps team"
-create "origin::pe"              "#1F6FB2" "Change produced by Platform Engineering"
+create "origin::secops"        "#0E6B60" "Change produced by the SecOps team"
+create "origin::pe"            "#1F6FB2" "Change produced by Platform Engineering"
 
-create "iam::user"               "#9B3524" "Individual human identity lifecycle"
-create "iam::group"              "#A8471F" "Group definition or membership"
-create "iam::permission-set"     "#8B2F52" "Permission bundle contents — capability, not grant"
-create "iam::assignment"         "#A86C09" "Binds a group + permission set to an account"
-create "iam::service-account"    "#6B4FA8" "Non-human identity, keys, impersonation"
-create "iam::federation"         "#3F5BA8" "Trust between identity systems"
+create "iam::user"             "#9B3524" "Individual human identity lifecycle"
+create "iam::group"            "#A8471F" "Group definition or membership"
+create "iam::permission-set"   "#8B2F52" "Permission bundle contents - capability, not grant"
+create "iam::assignment"       "#A86C09" "Binds a group + permission set to an account"
+create "iam::service-account"  "#6B4FA8" "Non-human identity, keys, impersonation"
+create "iam::federation"       "#3F5BA8" "Trust between identity systems"
+```"
 ```
 
 `ticket::` values are open-ended (one per ticket), so they are created on demand by
@@ -40,10 +58,9 @@ whoever opens the MR rather than pre-seeded. GitLab creates a scoped label on fi
 use if the group permits it; if it does not, add `ticket::` labels at project level as
 they arise.
 
-**Scoped labels require GitLab Premium.** If the tier does not include them, fall back
-to flat names with the same vocabulary — `origin-secops`, `iam-group`, `ticket-ZD-12345`
-— and accept that mutual exclusivity within a scope becomes a CI check instead of a
-platform guarantee.
+Scoped labels require Premium or above; `audacy-inc` is on `ultimate`, verified
+2026-08-30, so the flat-name fallback that earlier drafts described is not needed and has
+been dropped.
 
 ## 2. CI: the two blocking rules
 
