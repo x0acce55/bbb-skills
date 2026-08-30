@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "type": "http",
+      "url": "https://gitlab.com/api/v4/mcp"
+    },
+    "northstar-resources-inventory": {
+      "type": "http",
+      "url": "https://audacy.northstar.security/api/mcp?toolsets=resources,inventory"
+    }
+  },
+  "enabledMcpjsonServers": ["gitlab", "northstar-resources-inventory"]
+}

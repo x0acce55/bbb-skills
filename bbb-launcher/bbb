@@ -1,0 +1,176 @@
+#!/bin/sh
+# bbb — launch a Claude Code session with a BBB vault identity (ADR-0019, ADR-0036).
+#
+# usage:
+#   bbb                        list domains and usage
+#   bbb <domain> [args...]     elevated session at the domain root (default mode)
+#   bbb <domain> --ro [args]   read-only session at the domain root (plan mode)
+#   bbb admin [--ro] [args]    privileged session at the vault root (acceptEdits)
+#   bbb install [vault-root]   write the seed, generate per-domain config,
+#                              ensure root credential denies, link bbb onto PATH
+#
+# Extra args pass through to claude. Session config (deny rules, MCP gating,
+# sandbox, memory, hooks) does NOT ride this script — it lives in each domain's
+# generated .claude/settings.json so an unwrapped `claude` launched in a domain
+# folder is equally protected (ADR-0036). Generation is driven by the
+# domains/*.json fragments next to this script; generated files are outputs —
+# edit the fragment and re-run `bbb install`, never the output.
+#
+# Tiers (ADR-0019): read-only -> plan; elevated -> default mode, governance
+# denies from the domain settings; privileged -> acceptEdits at the vault root,
+# where no domain settings apply (no sandbox, no governance denies — the vault
+# root's own settings.json still carries the universal credential read-denies).
+
+set -eu
+
+die() { echo "bbb: $*" >&2; exit 1; }
+
+SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+LAUNCHER_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+SEED="${XDG_CONFIG_HOME:-$HOME/.config}/bbb/env"
+BIN_DIR="/opt/homebrew/bin"
+
+command -v jq >/dev/null 2>&1 || die "jq is required"
+
+# ---------------------------------------------------------------- generation
+
+gen_domain_config() {
+  # $1 = vault root, $2 = machine id, $3 = domain name
+  v="$1" m="$2" d="$3"
+  ddir="$v/projects/$d"
+  frag="$LAUNCHER_DIR/domains/$d.json"
+  [ -f "$frag" ] || frag=/dev/null
+
+  mkdir -p "$ddir/.claude"
+
+  # Base settings: what a domain launch loses by not reading the vault root's
+  # settings (memory, hooks), plus the tier guardrails (denies, sandbox).
+  # Absolute deny paths use Claude Code's //-prefix syntax; "/\($v)/..." with
+  # an absolute $v produces exactly that.
+  jq -n --arg v "$v" --arg m "$m" --arg d "$d" '
+    def gov: ["decisions/**", "context/**", ".claude/**",
+              "AGENTS.md", "CLAUDE.md", "BBB.md"];
+    {
+      autoMemoryEnabled: true,
+      autoMemoryDirectory: ($v + "/memories/" + $m),
+      permissions: {
+        deny: (
+          # Edit(path) rules cover every file-editing tool, Write included;
+          # Write(path) deny rules are ignored by file permission checks.
+          (gov | map("Edit(/\($v)/\(.))"))
+          + ["Edit(/\($v)/projects/\($d)/.claude/**)"]
+          + ["Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"]
+        )
+      },
+      sandbox: { enabled: true, autoAllowBashIfSandboxed: false },
+      hooks: {
+        PreToolUse: [
+          { matcher: "Bash",
+            hooks: [ { type: "command",
+                       command: ("python3 \"" + $v + "/.claude/hooks/twss.py\" hook"),
+                       timeout: 10 } ] }
+        ]
+      }
+    }' > "$ddir/.claude/settings.json.tmp"
+
+  # Merge the domain fragment over the base (allow rules, autoMode,
+  # enabledMcpjsonServers). mcpServers goes to .mcp.json, not settings.
+  jq -s '.[0] * ((.[1] // {}) | del(.mcpServers))' \
+    "$ddir/.claude/settings.json.tmp" "$frag" > "$ddir/.claude/settings.json"
+  rm -f "$ddir/.claude/settings.json.tmp"
+
+  # Domain MCP servers, only when the fragment declares any.
+  if [ "$(jq -r '(.mcpServers // {}) | length' "$frag")" -gt 0 ]; then
+    jq '{ mcpServers: .mcpServers }' "$frag" > "$ddir/.mcp.json"
+  fi
+  echo "  generated projects/$d/.claude/settings.json$( [ -f "$ddir/.mcp.json" ] && echo ' + .mcp.json' )"
+}
+
+do_install() {
+  v="${1:-${BBB_VAULT_ROOT:-}}"
+  [ -n "$v" ] || die "install needs a vault root: bbb install <vault-root>"
+  v="$(cd "$v" && pwd)"
+  local_json="$v/.claude/settings.local.json"
+  [ -f "$local_json" ] || die "$v is not a registered vault (no .claude/settings.local.json — run bbb-vault-setup first)"
+  m="$(jq -r '.env.BBB_MACHINE_ID // empty' "$local_json")"
+  [ -n "$m" ] || die "no BBB_MACHINE_ID in $local_json"
+
+  # 1. Seed: how bbb finds the vault from anywhere. One line per vault; first wins.
+  mkdir -p "$(dirname "$SEED")"
+  printf 'BBB_VAULT_ROOT=%s\n' "$v" > "$SEED"
+  echo "  wrote $SEED"
+
+  # 2. Per-domain config from fragments.
+  for ddir in "$v"/projects/*/; do
+    gen_domain_config "$v" "$m" "$(basename "$ddir")"
+  done
+
+  # 3. Universal credential read-denies in the vault root's settings.json —
+  # the one deny set that must bind every tier, privileged included (ADR-0020).
+  root_json="$v/.claude/settings.json"
+  [ -f "$root_json" ] || echo '{}' > "$root_json"
+  jq '.permissions.deny = ((.permissions.deny // [])
+        + ["Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"] | unique)' \
+    "$root_json" > "$root_json.tmp" && mv "$root_json.tmp" "$root_json"
+  echo "  ensured credential read-denies in $root_json"
+
+  # 4. Link onto PATH.
+  if [ -d "$BIN_DIR" ] && [ -w "$BIN_DIR" ]; then
+    ln -sf "$SELF" "$BIN_DIR/bbb"
+    echo "  linked $BIN_DIR/bbb -> $SELF"
+  else
+    echo "  NOTE: $BIN_DIR not writable — link manually: ln -sf \"$SELF\" <dir-on-PATH>/bbb"
+  fi
+  echo "bbb install: done ($v, machine $m)"
+}
+
+# ------------------------------------------------------------------- launch
+
+usage() {
+  echo "usage: bbb <domain> [--ro] | bbb admin [--ro] | bbb install [vault-root]"
+  if [ -f "$SEED" ]; then
+    . "$SEED"
+    echo "domains ($BBB_VAULT_ROOT/projects):"
+    for d in "$BBB_VAULT_ROOT"/projects/*/; do echo "  $(basename "$d")"; done
+  else
+    echo "no seed yet — run: bbb install <vault-root>"
+  fi
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  "" | -h | --help) usage; exit 0 ;;
+  install) do_install "$@"; exit 0 ;;
+esac
+
+[ -f "$SEED" ] || die "no seed at $SEED — run: bbb install <vault-root>"
+. "$SEED"
+VAULT="${BBB_VAULT_ROOT:-}"
+[ -d "$VAULT" ] || die "vault root '$VAULT' from $SEED does not exist"
+local_json="$VAULT/.claude/settings.local.json"
+[ -f "$local_json" ] || die "no $local_json — machine not registered"
+
+# Identity the vault root's settings would have provided, exported explicitly
+# so a domain launch (which never reads that file) carries it anyway.
+eval "$(jq -r '.env | to_entries[] | "export \(.key)=\(.value | @sh)"' "$local_json")"
+export BBB_VAULT_ROOT="$VAULT"
+
+case "$cmd" in
+  admin)
+    TIER=privileged MODE=acceptEdits DIR="$VAULT"
+    if [ "${1:-}" = "--ro" ]; then TIER=read-only MODE=plan; shift; fi
+    unset BBB_SESSION_DOMAIN 2>/dev/null || true
+    ;;
+  *)
+    [ -d "$VAULT/projects/$cmd" ] || { echo "bbb: unknown domain '$cmd'" >&2; usage >&2; exit 64; }
+    TIER=elevated MODE=default DIR="$VAULT/projects/$cmd"
+    if [ "${1:-}" = "--ro" ]; then TIER=read-only MODE=plan; shift; fi
+    export BBB_SESSION_DOMAIN="$cmd"
+    ;;
+esac
+
+export BBB_SESSION_TIER="$TIER"
+cd "$DIR"
+exec claude --permission-mode "$MODE" "$@"
