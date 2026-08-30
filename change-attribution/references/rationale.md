@@ -146,19 +146,40 @@ Length-constrained, and `tf-org-v2` already spends its subject-line real estate 
 `[skip ci]`. Structured attribution there would compete with an existing convention for
 the same characters.
 
-## Why resource attribution is deferred
+## Why `Change-Resource` carries a name, not a label or an id
 
-NorthStar's `*_resource_id` filtering "errors server-side (both bare `res_` and URI
-forms)" per the capability map — so handing them resource IDs today means handing them
-the field they cannot query. They filter `bound_principal` instead.
+Measured 2026-08-30 against a live resource, which overturned the answer this file
+previously carried.
 
-There is also a timing problem: at MR-open time the cloud resource may not exist. The
-Terraform address does, and is the only stable handle before apply.
+The earlier draft proposed joining an MR to its resource through labels — MR
+`ticket::ZD-12345` mapping to GCP `ticket=zd-12345`, which NorthStar would read. **That
+does not work.** `describe_table(gcp_compute_instance)` exposes only `label_fingerprint`,
+a hash; `labels`, `tags` and `annotations` are not columns. NorthStar can see that labels
+changed and never what they say. The mapping was sound in both directions we controlled
+and failed on the one we did not.
 
-The intent is to emit both once NorthStar confirms what they consume. Worth leading that
-conversation with what it gives them: their ingestion runs one to two days stale with no
-as-of timestamp, so a day-old grant reads as absent. An MR-derived changelog carries real
-merge timestamps and closes that gap rather than merely annotating their inventory.
+Three candidates fall away:
+
+- **GCP labels** — not modelled, per above.
+- **The GCP numeric id** — NorthStar keys the instance as `res_65704999219`, not
+  `5500821878962258694`.
+- **NorthStar's `res_` id** — assigned at ingestion, so it does not exist when the MR is
+  opened and cannot be written into a trailer.
+
+What survives is the **resource name**: `search_resources` resolved the VM by name, and a
+name is knowable at MR time because an engineer writes it in the Terraform.
+
+```
+Change-Resource: gcp_compute_instance/nslt-20260830-vm@us-east4-a
+```
+
+Type and zone qualify it enough to disambiguate. The join then runs in the direction that
+works — our trailer names the resource and NorthStar is queried by that name — and never
+requires NorthStar to read anything we write. That independence is worth more than the
+elegance of the label mapping it replaces.
+
+Still open with NorthStar: whether they can consume a principal alongside the name for
+IAM-shaped changes. That is an enhancement, not a blocker.
 
 ## Why `pe:iac-request` is left alone
 
@@ -187,5 +208,8 @@ state for the data with far less friction.
 | GCP IAM lives in `<env>/iam/` | `tf-gcp-*` terragrunt layout |
 | 44 of 46 IAM files are outside `**/iam/**` | content grep vs path glob across the workspace |
 | NorthStar resource-ID filtering errors | `northstar-mcp-capability-map.md:27` |
+| Compute instances ingest in <8 min | live measurement, 2026-08-30 |
+| Bindings/buckets/SAs slower than compute | same measurement |
+| gcp_compute_instance has no labels column | `describe_table`, 2026-08-30 |
 | NorthStar ingestion 1–2 days stale | `northstar-mcp-capability-map.md:25` |
 | PE and DevOps are one team | jira skill description; marketplace owner email |

@@ -183,10 +183,12 @@ message body, below the subject line, and never displace it.
   `references/enforcement.md`.
 - It does not emit or strip `pe:iac-request`. That is Platform Engineering's
   watermark on their own workflow; leave it where it is.
-- It does not carry resource-level attribution yet. `Change-Resource` and
-  `Change-Principal` are deferred until NorthStar confirms which identifier they can
-  consume — their `*_resource_id` filtering currently errors server-side. Trailers
-  are extensible, so adding the key later does not invalidate anything written now.
+- It does not yet emit `Change-Principal`. That one is still open with NorthStar.
+  `Change-Resource` **is** settled — carry the resource name qualified by type and
+  location, e.g. `gcp_compute_instance/my-vm@us-east4-a`. Do not use GCP labels (not
+  modelled in NorthStar), the cloud numeric id (they key by their own), or NorthStar's
+  `res_` id (assigned at ingestion, so it does not exist when the MR is opened).
+  See `references/rationale.md`.
 
 ## Reference
 

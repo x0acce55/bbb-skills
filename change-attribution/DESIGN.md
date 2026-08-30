@@ -153,21 +153,25 @@ reverts in reverse order, and a partial revert lands in a state no single MR des
 `ticket::` label is the compensating control; it is the only join key that reassembles the
 sequence.
 
-## Deferred
+## Resource attribution
 
-`Change-Resource` and `Change-Principal` are designed but not shipped. NorthStar's
-`*_resource_id` filtering currently errors server-side, so handing them resource IDs means
-handing them a field they cannot query; they filter `bound_principal` instead. There is also
-a timing problem no identifier choice fixes — at MR-open time the cloud resource may not
-exist, and the Terraform address is the only stable handle before apply.
+`Change-Resource` carries the **resource name**, qualified by type and location:
 
-The intent is to emit both once NorthStar confirms what they can consume. Trailers are
-extensible, so adding the key later invalidates nothing written now.
+```
+Change-Resource: gcp_compute_instance/nslt-20260830-vm@us-east4-a
+```
 
-Worth leading that conversation with what it gives them: their ingestion runs one to two
-days stale with no as-of timestamp, so a day-old grant reads as absent. An MR-derived
-changelog carries real merge timestamps, which closes that gap rather than merely annotating
-their inventory.
+An earlier draft proposed joining through labels — MR `ticket::ZD-12345` to GCP
+`ticket=zd-12345` — and measurement killed it. NorthStar's `gcp_compute_instance` table
+exposes only `label_fingerprint`, a hash: it can see that labels changed and never what
+they say. The GCP numeric id is out too (NorthStar keys by its own `res_` id), and that
+`res_` id is assigned at ingestion so it cannot be written into a trailer that predates it.
+
+Name is what `search_resources` resolves, and what an engineer already writes in the
+Terraform. The join then runs in the direction that works: our trailer names the resource,
+NorthStar is queried by that name, and nothing requires NorthStar to read what we write.
+
+`Change-Principal` remains open for IAM-shaped changes — an enhancement, not a blocker.
 
 ## Enforcement
 
