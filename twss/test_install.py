@@ -96,14 +96,18 @@ check("(b) re-run exits 0 and says already registered",
       p.returncode == 0 and "already registered" in p.stdout)
 check("(b) still exactly one registration", len(twss_entries(cfg)) == 1)
 
-# (c) a WORKING registration in settings.json is flagged as misplaced (it syncs),
-#     reported, and left alone without --repair
+# (c) a WORKING registration in settings.json is flagged as misplaced — because
+#     that file is an asset copy that machine registration overwrites, NOT because
+#     it syncs (no dot-file reaches another machine) — reported and left alone
+#     without --repair
 working = f'"{sys.executable}" "{{}}/.claude/hooks/twss.py" hook'
 vault = fresh_vault(settings_shared=hook_entry(working.format(str(vault).replace(chr(92), "/"))))
 p = run_install(vault, tmpbin())
 local = vault / ".claude" / "settings.local.json"
-check("(c) settings.json registration reported as syncing/misplaced",
-      "SYNCS" in p.stdout and p.returncode == 2)
+check("(c) settings.json registration reported as misplaced (asset copy)",
+      "ASSET COPY" in p.stdout and p.returncode == 2)
+check("(c) the stale 'it syncs' justification is gone",
+      "SYNCS" not in p.stdout)
 check("(c) settings.local.json not given a duplicate without --repair",
       not local.exists() or not twss_entries(json.loads(local.read_text(encoding="utf-8"))))
 check("(c) settings.json registration left intact without --repair",

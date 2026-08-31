@@ -206,12 +206,17 @@ def register_hook(vault: Path, hook_py: Path, repair: bool):
     """Ensure a WORKING PreToolUse registration exists. Returns (status, where, notes).
 
     New registrations go in settings.local.json with an absolute path pinned to
-    this interpreter (sys.executable). That file is machine wiring by convention
-    — it never syncs — which is what makes an absolute path safe there, and the
-    pin means a stale PATH or a Store stub cannot silently kill enforcement.
-    The same properties make settings.json the wrong home for it: that file
-    syncs, so a machine-specific interpreter there follows the vault onto
-    machines where it is wrong.
+    this interpreter (sys.executable). That file is the one the machine writes
+    for itself (ADR-0013), which is what makes an absolute path safe there, and
+    the pin means a stale PATH or a Store stub cannot silently kill enforcement.
+
+    settings.json is the wrong home for it, but NOT because it syncs — neither
+    file reaches another machine, since Obsidian Sync moves no dot-files
+    (ADR-0038 Context). The reason is ownership: the vault root's settings.json
+    arrives as a copy of bbb-vault-setup/assets/claude/settings.json at machine
+    registration, so a machine-resolved interpreter written there is liable to be
+    erased by the next re-copy — silently, and a hook that stops existing fails
+    closed exactly like one that declined.
 
     An existing registration is validated, not trusted. A broken or misplaced
     one is reported and left alone unless --repair is given, because rewriting
@@ -230,9 +235,10 @@ def register_hook(vault: Path, hook_py: Path, repair: bool):
         if ok and not misplaced:
             return "already registered and working", p, notes
         if ok and misplaced:
-            notes.append(f"registration lives in {p.name}, which SYNCS to other"
-                         " machines; its interpreter works here but may not"
-                         " elsewhere. Move it with --repair.")
+            notes.append(f"registration lives in {p.name}, which is an ASSET COPY"
+                         " — machine registration re-copies it, silently erasing a"
+                         " hook added here. It works today; it is one re-copy from"
+                         " not existing. Move it with --repair.")
         else:
             notes.append(f"registration in {p.name} is BROKEN: {detail}."
                          " The hook fails closed, so twss silently never allows"
