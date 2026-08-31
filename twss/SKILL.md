@@ -1,6 +1,6 @@
 ---
 name: twss
-description: Batch-approve a queue of shell commands ("that's what she said") — Claude writes the exact commands to .claude/twss-queue.txt, the user approves once with the twss CLI, and a PreToolUse hook auto-allows only byte-exact, unconsumed lines of the approved queue. Use when the user invokes /twss, asks to batch-approve commands, mentions a command queue, or wants a known sequence to run without prompt-by-prompt approvals.
+description: Batch-approve a queue of shell commands ("that's what she said") — Claude writes the exact commands to .twss-queue.txt, the user approves once with the twss CLI, and a PreToolUse hook auto-allows only byte-exact, unconsumed lines of the approved queue. Use when the user invokes /twss, asks to batch-approve commands, mentions a command queue, or wants a known sequence to run without prompt-by-prompt approvals.
 argument-hint: "the commands/task to queue, or 'status' / 'clear'"
 ---
 
@@ -60,9 +60,18 @@ acceptance suites), `--no-path` (leave the Windows user PATH alone);
 ## Workflow
 
 1. **Build the queue.** Write the exact commands — verbatim, one per line, in
-   execution order — to `<project>/.claude/twss-queue.txt`. `#` comments and
-   blank lines are allowed (they are shown but never matched). No denylisted
-   content: `sudo`, recursive deletes of `/`, network pipe-to-shell.
+   execution order — to `<project>/.twss-queue.txt`. Note the location: the
+   project root, **not** `.claude/`, which Claude Code refuses agent writes into
+   (ADR-0043). `#` comments and blank lines are allowed (they are shown but
+   never matched). No denylisted content: `sudo`, recursive deletes of `/`,
+   network pipe-to-shell.
+   If a queued command will need Claude Code's sandbox disabled — anything
+   reaching the network or writing outside the workspace, in a domain where the
+   sandbox is on — put `# twss: allow-sandbox-escape` in the queue as a comment
+   line. Without it the hook declines those calls, because the user approved
+   command *text* and running it sandbox-disabled is a larger act than the text
+   describes (ADR-0044). The directive is inside the approved bytes, so the user
+   reads it and `approve` warns about it.
 2. **Show the user the numbered list** and ask them to approve by running (via
    the `!` prefix, themselves — NEVER run this yourself):
    `! twss approve`
@@ -95,12 +104,22 @@ acceptance suites), `--no-path` (leave the Windows user PATH alone);
 - `twss clear` removes the queue, approval, and state; `twss status` shows
   hash, approval state, and per-line consumption. The allow log is
   `.claude/twss-log.txt`.
+- **When twss "stops working", run `twss status` before theorising.** A decline
+  prints nothing by design, so every cause looks identical from the outside —
+  that is the failure ADR-0038 was written about. `status` names the resolved
+  root and which variable chose it (an approval and a hook addressing different
+  directories is the classic cause), reports whether a hook is registered here
+  and whether its interpreter can start, and the log names the branch every
+  decline took: `DECLINE hash-void`, `ttl-expired`, `consumed`, `no-match`,
+  `sandbox-escape`. Read those two before concluding anything.
 
 ## What this does NOT do
 
 It streamlines Claude Code's permission prompts for a queue the user has read
 and approved — nothing more. Some operations may still be refused by other
 layers, and those the user runs themselves via `!`. The "only the user runs
-approve" rule is a documented convention plus an audit log, not something the
-hook can verify (files do not record their author): a guardrail against
+approve" rule is enforced for the Edit/Write path by Claude Code's own refusal
+to let an agent write into `.claude/`, where the approval lives — but the hook
+still cannot verify it (files do not record their author, and a sandbox-disabled
+Bash call can reach `.claude/` anyway, ADR-0044): a strong guardrail against
 accident, not a security boundary.

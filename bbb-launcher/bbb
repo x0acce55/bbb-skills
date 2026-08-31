@@ -35,8 +35,8 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # ---------------------------------------------------------------- generation
 
 gen_domain_config() {
-  # $1 = vault root, $2 = machine id, $3 = domain name
-  v="$1" m="$2" d="$3"
+  # $1 = vault root, $2 = machine id, $3 = domain name, $4 = interpreter
+  v="$1" m="$2" d="$3" py="$4"
   ddir="$v/projects/$d"
   frag="$LAUNCHER_DIR/domains/$d.json"
   [ -f "$frag" ] || frag=/dev/null
@@ -47,7 +47,7 @@ gen_domain_config() {
   # settings (memory, hooks), plus the tier guardrails (denies, sandbox).
   # Absolute deny paths use Claude Code's //-prefix syntax; "/\($v)/..." with
   # an absolute $v produces exactly that.
-  jq -n --arg v "$v" --arg m "$m" --arg d "$d" '
+  jq -n --arg v "$v" --arg m "$m" --arg d "$d" --arg py "$py" '
     def gov: ["decisions/**", "context/**", ".claude/**",
               "AGENTS.md", "CLAUDE.md", "BBB.md"];
     {
@@ -57,17 +57,27 @@ gen_domain_config() {
         deny: (
           # Edit(path) rules cover every file-editing tool, Write included;
           # Write(path) deny rules are ignored by file permission checks.
+          # They bind no Bash at all, though — see ADR-0044; this is a
+          # guardrail against an agent editing governed notes, not a boundary.
           (gov | map("Edit(/\($v)/\(.))"))
           + ["Edit(/\($v)/projects/\($d)/.claude/**)"]
           + ["Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"]
-        )
+        ),
+        # The twss queue is the one file an agent is MEANT to write: it is the
+        # proposal the user reads before approving (ADR-0043). One exact path,
+        # never a glob — a glob over .claude/twss-* would let an agent mint its
+        # own approval and self-grant auto-allow.
+        allow: ["Edit(/\($v)/projects/\($d)/.twss-queue.txt)"]
       },
       sandbox: { enabled: true, autoAllowBashIfSandboxed: false },
       hooks: {
         PreToolUse: [
           { matcher: "Bash",
             hooks: [ { type: "command",
-                       command: ("python3 \"" + $v + "/.claude/hooks/twss.py\" hook"),
+                       # Absolute interpreter, resolved at install time (ADR-0038):
+                       # a bare python3 is the Store stub on Windows, and a hook
+                       # that cannot start is indistinguishable from one declining.
+                       command: ("\"" + $py + "\" \"" + $v + "/.claude/hooks/twss.py\" hook"),
                        timeout: 10 } ] }
         ]
       }
@@ -75,8 +85,15 @@ gen_domain_config() {
 
   # Merge the domain fragment over the base (allow rules, autoMode,
   # enabledMcpjsonServers). mcpServers goes to .mcp.json, not settings.
-  jq -s '.[0] * ((.[1] // {}) | del(.mcpServers))' \
-    "$ddir/.claude/settings.json.tmp" "$frag" > "$ddir/.claude/settings.json"
+  # permissions.allow/deny CONCATENATE: jq's * replaces arrays wholesale, so a
+  # fragment that declares its own allow list would otherwise silently drop the
+  # twss-queue rule the base just added.
+  jq -s '
+    .[0] as $base | ((.[1] // {}) | del(.mcpServers)) as $frag |
+    ($base * $frag)
+    | .permissions.allow = (($base.permissions.allow // []) + ($frag.permissions.allow // []) | unique)
+    | .permissions.deny  = (($base.permissions.deny  // []) + ($frag.permissions.deny  // []) | unique)
+  ' "$ddir/.claude/settings.json.tmp" "$frag" > "$ddir/.claude/settings.json"
   rm -f "$ddir/.claude/settings.json.tmp"
 
   # Domain MCP servers, only when the fragment declares any.
@@ -95,6 +112,16 @@ do_install() {
   m="$(jq -r '.env.BBB_MACHINE_ID // empty' "$local_json")"
   [ -n "$m" ] || die "no BBB_MACHINE_ID in $local_json"
 
+  # Interpreter for the generated twss hook, resolved HERE and pinned by
+  # absolute path (ADR-0038). A bare `python3` in a hook command is the failure
+  # that cost two sessions on Windows, and a hook that cannot start is
+  # indistinguishable from one that declined.
+  py="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  [ -n "$py" ] || die "no python3/python on PATH — cannot pin the twss hook interpreter"
+  case "$py" in /*) ;; *) py="$(cd "$(dirname "$py")" && pwd)/$(basename "$py")" ;; esac
+  "$py" -c 'import sys' >/dev/null 2>&1 || die "'$py' cannot start — refusing to pin a dead interpreter"
+  echo "  twss hook interpreter: $py"
+
   # 1. Seed: how bbb finds the vault from anywhere. One line per vault; first wins.
   mkdir -p "$(dirname "$SEED")"
   printf 'BBB_VAULT_ROOT=%s\n' "$v" > "$SEED"
@@ -102,7 +129,7 @@ do_install() {
 
   # 2. Per-domain config from fragments.
   for ddir in "$v"/projects/*/; do
-    gen_domain_config "$v" "$m" "$(basename "$ddir")"
+    gen_domain_config "$v" "$m" "$(basename "$ddir")" "$py"
   done
 
   # 3. Universal credential read-denies in the vault root's settings.json —
@@ -172,5 +199,14 @@ case "$cmd" in
 esac
 
 export BBB_SESSION_TIER="$TIER"
+
+# Which .claude twss keeps its approval and state in. Exported explicitly so the
+# hook (which Claude Code hands CLAUDE_PROJECT_DIR) and the user's `!` shell
+# (which it does not) resolve the SAME directory. Without it the shell inherits
+# BBB_VAULT_ROOT from the block above and falls back to the vault root, so
+# `twss approve` would mint an approval the domain's hook never reads — and the
+# only symptom is silence (ADR-0043).
+export TWSS_ROOT="$DIR"
+
 cd "$DIR"
 exec claude --permission-mode "$MODE" "$@"
