@@ -33,7 +33,8 @@ What one run does:
   5. Runs the acceptance tests (test_twss.py; skip with --no-test) and shows
      `twss status`, so a green install is a proven one.
 
-Afterwards, reload hook config in the Claude Code session: /hooks (or restart).
+Afterwards, restart the Claude Code session (claude --continue) to arm the
+hook. /hooks edits hook config; it does not re-arm the running session.
 
 Flags: --no-path (leave the Windows user PATH alone), --no-test.
 Stdlib only. Run with python3 (macOS/Linux) or python / py (Windows).

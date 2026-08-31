@@ -41,8 +41,19 @@ entry, runs the acceptance suite):
 - Windows: `! python <skill-dir>/install.py` — if that prints "Python was not
   found", `python` is the Microsoft Store stub; use `! py <skill-dir>/install.py`
 
-Then the user reloads hook config with `/hooks` (or restarts the session):
-until they do, the hook is on disk but not live here.
+Then the user **restarts the session** (`claude --continue`): until they do,
+the hook is on disk but not live here. Do not tell them `/hooks` will do it —
+`/hooks` edits hook configuration, it does not re-arm a hook for the session
+already running. Because a twss decline prints nothing, an unarmed hook is
+indistinguishable from a correct decline, so "I ran the installer and it still
+prompts me for every line" is the expected symptom of skipping the restart.
+After the restart, `twss status` reports the hook registered and its
+interpreter runnable — use that, not the log, as the test. The log is not a
+per-call trace: consecutive identical declines collapse to one line, so a live
+hook facing one unapproved queue logs once and then stays quiet however many
+Bash calls follow. Absence of a log line is not evidence of a dead hook. To
+prove a hook live, change the queue — the decline message carries the queue
+hash, so the next call logs afresh.
 
 The installer validates an existing registration rather than trusting it, and
 exits 2 if it is unhealthy — a dead interpreter (the hook then fails closed, so
