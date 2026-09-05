@@ -79,6 +79,46 @@ Then apply the register rules:
 - **One comment for a batch.** If sibling tickets share a blocker, write one comment and
   say to paste it on all of them, exactly as he did across DEVOPS-7870 through 7873.
 
+## 4a. Showing access that spans projects
+
+When the answer turns on who holds what and where, use a table. Prose hides the two
+things that decide these tickets: whether two principals actually differ, and whether a
+grant sits at the scope the operation is evaluated at.
+
+**Gap table — one row per project.** For a request that cannot work as written. Columns:
+what is granted, what the operation needs, the gap. Repetition down the rows is the
+finding, not filler. From ZD-347738, where four dataset-scoped MRs could not fix a view
+that region-qualifies `INFORMATION_SCHEMA`:
+
+| Project | Env | The MRs grant | The view needs | Gap |
+| --- | --- | --- | --- | --- |
+| `prj-edp-dev-data-strat-7373` | dev | `bigquery.dataViewer`, dataset scope | `bigquery.metadataViewer`, project scope | open |
+| `prj-edp-prod-data-strat-5d4d` | prod | `bigquery.dataViewer`, dataset scope | `bigquery.metadataViewer`, project scope | open |
+| `prj-edp-prod-edw-90be` | prod | `bigquery.dataViewer`, dataset scope | `bigquery.metadataViewer`, project scope | open |
+
+**Parity table — one row per principal, one column per scope.** For service-account
+overlap and "does X already have what Y has". Identical rows are the answer: on DAC-1256
+this is what showed the Techolution reader SA already matched the developers — project
+`bigquery.jobUser`, READER on `acs_api`, `CANNOT_ACCESS` on every source dataset — which
+retired a ticket before it was filed.
+
+Rules:
+
+- **A table puts the comment in the long register** (section 3), which is the exception,
+  not the default. If the finding fits in one sentence, write the sentence.
+  `check_draft.py` flags a table in the ordinary register.
+- **Name the role in full on both sides.** The scope column does as much work as the role
+  column — `bigquery.dataViewer` at dataset scope against `bigquery.metadataViewer` at
+  project scope is the entire argument in that example.
+- **Say what a principal cannot reach when that is the design working.**
+  `CANNOT_ACCESS` on a source dataset is a result, not a gap.
+- **Every cell traces to something measured.** An unverified row gets a blank cell and a
+  line saying what you did not check (section 1).
+- **The table replaces the argument; it does not illustrate it.** Do not restate the rows
+  in prose underneath.
+
+The worked cases behind both shapes are in [[bigquery-authorization]].
+
 ## 5. Never do these
 
 - **Never offer his time.** No "happy to hop on a call", no "let me know if you need

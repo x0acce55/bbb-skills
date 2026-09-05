@@ -94,6 +94,12 @@ def check(text, long_form=False):
             flags.append("markdown header — not in an ordinary reply")
         if re.search(r"\*\*[^*\n]{2,}\*\*", body):
             flags.append("bold run used as a pseudo-header — he strips these")
+        # A table is structure, so it belongs to the long register (SKILL.md 4a).
+        # The rule was prose-only at first, which is how a documented fence stops
+        # being a real one -- so it is asserted here instead.
+        if len(re.findall(r"^\s*\|.*\|\s*$", body, re.M)) >= 2:
+            flags.append("markdown table — a table puts this in the long register "
+                         "(4a); re-run with --long, or write the sentence instead")
 
     # --- shape -----------------------------------------------------------
     words = len(body.split())
