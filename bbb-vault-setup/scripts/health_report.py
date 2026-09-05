@@ -32,6 +32,12 @@ EXEMPT = {"memories", ".claude", ".obsidian", ".git", ".trash"}
 # silently dropped or quietly degrading adherence.
 MEMORY_INDEX_LINES = 200
 MEMORY_INDEX_BYTES = 25 * 1024
+# Cost budget, distinct from the load limit above: the index is resident on every
+# turn of every session, so a long entry costs far more than a long file. One line
+# per memory, at most this many bytes each, and a byte budget for the whole index
+# (vault-method audit, 2026-09-05).
+MEMORY_INDEX_ENTRY_BYTES = 300
+MEMORY_INDEX_BUDGET_BYTES = 8 * 1024
 INSTRUCTION_BUDGET_LINES = 200
 
 
@@ -143,6 +149,30 @@ def main():
                 )
     out.section("memory indexes over the load limit", overflow,
                 "Only the first 200 lines or 25KB enter context. Distill.")
+
+    # 3b. Memory index cost budget. Every byte here is paid on every turn of every
+    #     session, so the check is per entry and per file, not the load limit.
+    costly = []
+    if mem.is_dir():
+        for idx in sorted(mem.glob("*/MEMORY.md")):
+            raw = idx.read_text(encoding="utf-8", errors="replace")
+            b = len(raw.encode("utf-8"))
+            if b > MEMORY_INDEX_BUDGET_BYTES:
+                costly.append(
+                    f"{idx.relative_to(vault)}: {b} bytes (budget {MEMORY_INDEX_BUDGET_BYTES})"
+                )
+            for line in raw.splitlines():
+                n = len(line.encode("utf-8"))
+                if line.startswith("- [") and n > MEMORY_INDEX_ENTRY_BYTES:
+                    costly.append(
+                        f"{idx.relative_to(vault)}: entry of {n} bytes -- {line[:60]}..."
+                    )
+    out.section(
+        "memory index over its cost budget", costly,
+        "The index is resident on every turn. One line per memory, under "
+        f"{MEMORY_INDEX_ENTRY_BYTES} bytes each and {MEMORY_INDEX_BUDGET_BYTES} bytes in "
+        "total; move detail into the topic file.",
+    )
 
     # 4. Buffers accumulating without distillation.
     undistilled = []

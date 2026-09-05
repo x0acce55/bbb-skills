@@ -40,6 +40,12 @@ memories/
 No two machines ever write the same file, so there is nothing to contend over and no
 lock is needed for ordinary operation. Auto memory keeps working exactly as designed.
 
+The index file `MEMORY.md` is loaded into every session on its machine, so every byte in
+it is paid on every turn. Keep it to one line per memory, at most 300 bytes each and
+8 KB in total, naming the topic file and its current conclusion; corrections and detail
+go in the topic file. `health_report.py` reports entries and indexes over that budget
+(measured 2026-09-05: an 18 KB index with one 6.4 KB entry cost ~7.6k tokens per turn).
+
 The buffers are **volatile and machine-scoped**. They are working notes, not the shared
 brain. Anything that matters is promoted out of them into `context/`, `decisions/`, or
 `daily/`, which are the durable shared layer. That promotion is the `bbb-memory-distill`

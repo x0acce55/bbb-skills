@@ -19,6 +19,11 @@ Start at [[BBB]], the home note. From there everything is reachable by following
 Read `context/about-me.md` and `context/goals.md` before starting a task. For work
 inside a project, the project's index note is its context and its current state.
 
+Already in your context at launch, so never open them again with Read or `cat`:
+`AGENTS.md` (imported by `CLAUDE.md`), your machine's `memories/<machine-id>/MEMORY.md`,
+and the index note that a folder's `CLAUDE.md` imports once you work there. Re-reading
+them re-enters the same text as a tool result.
+
 ## This vault has a setup skill — use it
 
 Structure, frontmatter, index notes, and decision records in this vault are maintained
