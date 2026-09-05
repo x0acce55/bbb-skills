@@ -160,5 +160,17 @@ p = subprocess.run([sys.executable, str(vault / ".claude" / "hooks" / "twss.py")
                    capture_output=True, text=True, env=env)
 check("(e) installed hook answers status", p.returncode == 0 and "twss:" in p.stdout)
 
+# (f) the closing advice must not send the user to /hooks.
+# f76afc8 corrected this claim in SKILL.md and in install.py's docstring but not
+# in the two strings install.py PRINTS, which are the only version a user reads —
+# so it survived, was printed on 2026-09-05, and is pinned here now. Asserting on
+# the output text is what would have caught it; a docstring nothing reads is not.
+src = (Path(__file__).parent / "install.py").read_text(encoding="utf-8")
+advice = [l for l in src.splitlines() if "print(" in l or l.strip().startswith('"')]
+check("(f) no printed string sends the user to /hooks to arm a hook",
+      not any("/hooks (or restart)" in l for l in advice))
+check("(f) the restart instruction is the actionable one",
+      "claude --continue" in src)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

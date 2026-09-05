@@ -399,9 +399,14 @@ def main() -> int:
     if unhealthy:
         print("INCOMPLETE: the shims and hook file are in place, but the hook"
               " registration above is not healthy — re-run with --repair to"
-              " rewrite it, then /hooks (or restart).")
+              " rewrite it, then RESTART the session (claude --continue).")
         return 2
-    print("done. Reload hook config in the session: /hooks (or restart). Then: twss status")
+    # /hooks is a config editor: a hook registered after a session started loads
+    # at the NEXT session start. Saying "/hooks (or restart)" hands the reader the
+    # cheaper half, which is the half that does not work — f76afc8 fixed this in
+    # SKILL.md and in the docstring above, and missed the two printed strings.
+    print("done. RESTART the session to arm the hook: claude --continue "
+          "(/hooks edits config; it does not re-arm a running session). Then: twss status")
     return 1 if failed else 0
 
 
