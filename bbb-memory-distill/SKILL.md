@@ -1,6 +1,6 @@
 ---
 name: bbb-memory-distill
-description: Promote a machine's volatile agent memories into the BBB vault's shared layer (context, ADRs, daily notes), optionally with a handover doc. Use when asked to distill, flush, promote, consolidate, review or clear memories, when the memory file is long or messy, or before switching machines.
+description: Promote a machine's volatile agent memories into the BBB vault's shared layer (context, ADRs, daily notes). Use when asked to distill, flush, promote, consolidate, review or clear memories, what the agent has learned or remembered, when the memory file is long or messy, or before switching machines.
 ---
 
 # Distill memory into the vault

@@ -1,6 +1,6 @@
 ---
 name: bbb-vault-setup
-description: Scaffold and maintain the BBB Obsidian vault: frontmatter, up-links, generated indexes, ADRs, AGENTS.md/CLAUDE.md, machine registration, auto-memory wiring. Use for any vault or second-brain structure work: add a note or project, write or link an ADR, regenerate indexes, check orphans.
+description: Maintain the BBB Obsidian vault: frontmatter, up-links, indexes, ADRs, AGENTS.md/CLAUDE.md, machine registration, auto-memory wiring (settings.local.json). Use for vault or second-brain structure work: add a note or project, write or link an ADR, regenerate indexes, check orphans or sync conflicts.
 ---
 
 # BBB vault setup and maintenance

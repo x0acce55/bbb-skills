@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Graceful hand-off when Max subscription usage is nearly out: flush pending vault, memory and artifact writes, produce a handover via bbb-handover, and give the user the claude-paid restart command. Use on /relay or when the user says usage is almost exhausted.
+description: Graceful hand-off when Max subscription usage is nearly out: flush pending vault, memory and artifact writes, produce a handover via bbb-handover, and give the user the claude-paid restart command. Use on /relay, when the user says usage is almost exhausted, or to prepare for the paid fallback.
 argument-hint: "optional: what the next session should focus on"
 ---
 

@@ -12,8 +12,8 @@ the receiving session starts mid-stride instead of rediscovering.
 
 Measured on this vault (2026-09-05, 38 working sessions): 57% of all cache-creation
 tokens were the prompt prefix being re-created after an idle gap or a compaction in a
-long-lived session, and every compaction happened in a session past 100 turns. So when a
-session has compacted once, has idled past the prompt-cache window, or is carrying mostly
+long-lived session, and all 16 compactions fell in five long sessions (42 to 299 turns). So
+when a session has compacted once, has idled past the prompt-cache window, or is carrying mostly
 finished work, write this handover and start a fresh session instead of continuing.
 Resuming a cold session re-enters its whole prefix at cache-write price; a fresh session
 with a handover pays only for the handover.
