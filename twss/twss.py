@@ -77,6 +77,107 @@ LOG = CLAUDE_DIR / "twss-log.txt"
 SANDBOX_OPT_IN = re.compile(r"^\s*#\s*twss:\s*allow-sandbox-escape\b", re.I | re.M)
 
 
+# --------------------------------------------------------------- presentation
+#
+# Colour and the effect tags are a READING AID for the consent moment. They
+# decide nothing: denied() is the only thing that ever refuses, and the hook's
+# allow path never calls any of this. cmd_hook's stdout is a JSON protocol
+# channel, so an escape byte there would corrupt a decision — colour is applied
+# only in the CLI paths, and only when stdout is a real terminal.
+
+
+def _colour_enabled():
+    """TTY-only, NO_COLOR-respecting. Also the reason the test-suite assertions
+    still match: captured stdout is not a tty, so every listing stays plain."""
+    mode = os.environ.get("TWSS_COLOR", "")
+    if mode == "never" or os.environ.get("NO_COLOR") is not None:
+        return False
+    if mode == "always":
+        return True
+    if not sys.stdout.isatty():
+        return False
+    if os.name == "nt":
+        try:  # Windows 10+ needs VT processing switched on; older consoles cannot.
+            import ctypes
+            k = ctypes.windll.kernel32
+            return bool(k.SetConsoleMode(k.GetStdHandle(-11), 7))
+        except Exception:
+            return False
+    return os.environ.get("TERM", "") not in ("", "dumb")
+
+
+COLOUR = _colour_enabled()
+_CODES = {
+    "red": "\033[1;38;5;196m",
+    "orange": "\033[1;38;5;208m",
+    "yellow": "\033[38;5;220m",
+    "green": "\033[38;5;71m",
+    "dim": "\033[2m",
+}
+
+
+def c(hue, text):
+    return f"{_CODES[hue]}{text}\033[0m" if COLOUR and hue in _CODES else text
+
+
+# Effect classification. Deliberately errs LOUD: anything not recognisable as a
+# read is shown as a write, because an under-flagged write is the error that
+# costs something and an over-flagged read costs a second look. `grep create`
+# reading as a write is the intended trade, not a bug.
+_DESTROY = re.compile(r"""
+    (^|\s)(rm|rmdir|shred|srm|mkfs\S*|dd)\s
+  | \b(delete|destroy|purge|revoke|terminate|deprovision|wipe)\b
+  | \bgit\s+(push\s+[^|;]*--force|reset\s+--hard|clean\s+-\w*f|branch\s+-D)
+  | \b(terraform|terragrunt)\s+destroy\b
+  | \bdrop\s+(table|database|schema)\b | \btruncate\b
+  | \bkill(all)?\s
+""", re.I | re.X)
+_WRITE = re.compile(r"""
+    (^|[^0-9<>&])>>?\s*(?!/dev/null|&)\S
+  | \b(tee|mv|cp|mkdir|touch|chmod|chown|chgrp|ln|install|rsync|scp)\s
+  | \bsed\s+-[a-z]*i | \bpatch\s
+  | \bgit\s+(add|commit|push|merge|rebase|checkout|switch|restore|tag|stash|pull|fetch|init|clone|apply|cherry-pick)\b
+  | \b(create|update|set|add|enable|disable|apply|insert|upload|import|attach|bind|grant|deploy|restart|start|stop|write|put|post|patch|rename|move|copy|sync|approve|publish|release)\b
+  | \b(set|add|remove)-iam-policy(-binding)?\b
+  | \bcurl\b[^|;]*(-X\s*(POST|PUT|PATCH|DELETE)|--data|\s-d\s)
+  | \b(pip3?|npm|yarn|brew|apt|gem|cargo|go)\s+(install|add|publish|uninstall)
+""", re.I | re.X)
+_READ = re.compile(r"""
+    (^|\s)(cat|head|tail|less|more|wc|grep|rg|egrep|find|ls|stat|file|du|df|diff|jq|yq|awk|cut|sort|uniq|tr|column|echo|printf|pwd|whoami|date|env|which|type|man|md5|shasum|sha256sum|base64|open)\s
+  | \bsed\s+-n\b
+  | \b(describe|list|get|show|status|logs?|version|read|search|query|view|inspect|check|explain|history|diff|print|dump|count|whoami|identity)\b
+  | \bgit\s+(log|show|diff|status|branch|remote|rev-parse|blame|ls-files)\b
+""", re.I | re.X)
+
+
+def effect(cmd):
+    """(tag, hue) for one queue line. Worst segment wins on a compound line."""
+    worst = ("read", "dim")
+    rank = {"read": 0, "?": 1, "WRITE": 2, "DESTROY": 3}
+    for seg in re.split(r"&&|\|\||;|\|", cmd):
+        if not seg.strip():
+            continue
+        if _DESTROY.search(seg):
+            got = ("DESTROY", "red")
+        elif _WRITE.search(seg):
+            got = ("WRITE", "yellow")
+        elif _READ.search(seg):
+            got = ("read", "dim")
+        else:
+            got = ("?", "yellow")
+        if rank[got[0]] > rank[worst[0]]:
+            worst = got
+    return worst
+
+
+def render(i, line, mark=None):
+    """One listing row, shared by approve and status so the two never drift."""
+    tag, hue = effect(line)
+    body = c(hue, line) if tag in ("WRITE", "DESTROY") else line
+    prefix = f"  [{mark}] " if mark is not None else "  "
+    return f"{prefix}{i:3d}  {c(hue, f'{tag:>7}')}  {body}"
+
+
 def denied(cmd):
     """Hardcoded backstop, not a general safety filter. Checked at approve time
     AND at hook time, so a queue can never smuggle these past a stale review."""
@@ -240,19 +341,21 @@ def cmd_approve():
         print("twss: queue is empty — nothing to approve")
         sys.exit(1)
     print(f"twss: approving queue {qhash[:12]} — read this list; it is exactly what will run:\n")
+    if SANDBOX_OPT_IN.search(qbytes.decode("utf-8")):
+        # Before the listing, not after: it changes what every line below means,
+        # and the opt-in is queue-WIDE — no line is exempt from it.
+        print(c("orange", "  !! this queue carries `# twss: allow-sandbox-escape` — approved lines"))
+        print(c("orange", "     may run with Claude Code's sandbox DISABLED (network and writes"))
+        print(c("orange", "     outside the workspace). Remove that line to withhold it."))
+        print()
     blocked = []
     for i, l in lines:
         reason = denied(l)
-        flag = f"   << BLOCKED ({reason})" if reason else ""
-        print(f"  {i + 1:3d}  {l}{flag}")
+        flag = c("red", f"   << BLOCKED ({reason})") if reason else ""
+        print(f"{render(i + 1, l)}{flag}")
         if reason:
             blocked.append((i + 1, reason))
-    if SANDBOX_OPT_IN.search(qbytes.decode("utf-8")):
-        print("  !! this queue carries `# twss: allow-sandbox-escape` — approved lines")
-        print("     may run with Claude Code's sandbox DISABLED (network and writes")
-        print("     outside the workspace). Remove that line to withhold it.\n")
-    else:
-        print()
+    print()
     if blocked:
         print("twss: REFUSED — denylisted line(s): "
               + ", ".join(f"line {n} ({r})" for n, r in blocked))
@@ -285,7 +388,7 @@ def hook_health():
                 if "twss" in h.get("command", ""):
                     found.append((name, h["command"]))
     if not found:
-        print(f"  hook: NOT registered in {CLAUDE_DIR} — nothing can be allowed here")
+        print(c("red", f"  hook: NOT registered in {CLAUDE_DIR} — nothing can be allowed here"))
         return
     for name, command in found:
         try:
@@ -295,7 +398,8 @@ def hook_health():
         exe = parts[0].strip('"') if parts else ""
         ok = bool(shutil.which(exe) or (exe and Path(exe).exists()))
         print(f"  hook: registered in {name}, interpreter {exe} "
-              f"{'ok' if ok else 'NOT FOUND — the hook cannot start (ADR-0038)'}")
+              + (c("green", "ok") if ok
+                 else c("red", "NOT FOUND — the hook cannot start (ADR-0038)")))
 
 
 def cmd_status():
@@ -313,17 +417,16 @@ def cmd_status():
         appr = json.loads(APPROVED.read_text(encoding="utf-8"))
         age = time.time() - float(appr.get("approved_at", 0))
         if appr.get("hash") != qhash:
-            print("  approval: VOID (queue changed since approval)")
+            print(c("red", "  approval: VOID (queue changed since approval)"))
         elif age > TTL_SECONDS:
-            print(f"  approval: EXPIRED ({int(age)}s old, ttl {TTL_SECONDS}s)")
+            print(c("yellow", f"  approval: EXPIRED ({int(age)}s old, ttl {TTL_SECONDS}s)"))
         else:
-            print(f"  approval: ACTIVE ({int(TTL_SECONDS - age)}s remaining)")
+            print(c("green", f"  approval: ACTIVE ({int(TTL_SECONDS - age)}s remaining)"))
             consumed = set(load_state().get(qhash, []))
     except FileNotFoundError:
         print("  approval: none")
     for i, l in lines:
-        mark = "done" if i in consumed else "    "
-        print(f"  [{mark}] {i + 1:3d}  {l}")
+        print(render(i + 1, l, mark="done" if i in consumed else "    "))
 
 
 def cmd_clear():

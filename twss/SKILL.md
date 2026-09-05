@@ -73,8 +73,9 @@ acceptance suites), `--no-path` (leave the Windows user PATH alone);
 1. **Build the queue.** Write the exact commands — verbatim, one per line, in
    execution order — to `<project>/.twss-queue.txt`. Note the location: the
    project root, **not** `.claude/`, which Claude Code refuses agent writes into
-   (ADR-0043). `#` comments and blank lines are allowed (they are shown but
-   never matched). No denylisted content: `sudo`, recursive deletes of `/`,
+   (ADR-0043). `#` comments and blank lines are allowed; they are hashed
+   into the approval and readable in the file, but `twss approve` lists only
+   real command lines, so a comment is not a substitute for the Does column. No denylisted content: `sudo`, recursive deletes of `/`,
    network pipe-to-shell.
    If a queued command will need Claude Code's sandbox disabled — anything
    reaching the network or writing outside the workspace, in a domain where the
@@ -83,7 +84,7 @@ acceptance suites), `--no-path` (leave the Windows user PATH alone);
    command *text* and running it sandbox-disabled is a larger act than the text
    describes (ADR-0044). The directive is inside the approved bytes, so the user
    reads it and `approve` warns about it.
-2. **Show the user the numbered list** and ask them to approve by running (via
+2. **Show the user the preview table** (below) and ask them to approve by running (via
    the `!` prefix, themselves — NEVER run this yourself):
    `! twss approve`
    (if that reports command-not-found, the shim is not on this shell's PATH —
@@ -97,6 +98,42 @@ acceptance suites), `--no-path` (leave the Windows user PATH alone);
 4. **Report per-command results honestly** — exit codes and key output, no
    glossing. Then run `twss status` to show the consumed/remaining state if any
    lines are left.
+
+## The preview table
+
+Always render the queue as this table before asking for approval — never a bare
+numbered list and never prose. It is a **fixed format, not a stylistic choice**:
+left unspecified it drifts, and it did drift, silently, for days.
+
+| # | Command | Does | As | Where | Effect | Expects |
+|---|---|---|---|---|---|---|
+| 3 | `gcloud …service-accounts describe sa-tf-admin@…7847` | D0 positive control | townsend3 | 🛡 sandbox | 👁 read | exists |
+| 5 | `gcloud services enable sts.googleapis.com …` | unblock the WIF probe | townsend3 | 🔓 escape | ✏️ write | enabled |
+| 8 | `rm -rf $TMPDIR/scratch` | teardown | — | 🛡 sandbox | 💥 destroy | gone |
+
+- `#` is the **physical line number in the queue file**, which is what the hook
+  and `twss status` report. Comment and blank lines occupy numbers, so it is not
+  a count of commands — take it from the file, do not renumber.
+- `Command` may be abbreviated with `…` to keep the table readable. **The
+  verbatim text is not this table's job**: `twss approve` prints every line in
+  full, in colour, and that listing is the consent surface. The table orients;
+  approve is what is actually read and hashed.
+- `Where` — 🛡 sandbox, 🔓 escape (needs `# twss: allow-sandbox-escape`), 💻 the
+  user's own `!` shell. **This column is per-line *intent*, not enforcement**:
+  the opt-in comment is queue-WIDE, so once it is present the hook allows a
+  sandbox escape on any approved line. Say so whenever a queue carries it.
+- `Effect` — 👁 read, ✏️ write, 💥 destroy, ❓ unclassified. These mirror the
+  `read`/`WRITE`/`DESTROY`/`?` tags `twss.py` derives from the command text
+  itself, so a disagreement between this table and the approve listing is
+  visible to the user. That is deliberate: the tag they act on is the one twss
+  computed, not the one you claimed.
+- **Omit any column that is constant down the whole queue**, and state the
+  constant in one line above the table instead — a single-identity read-only
+  queue is `# | Command | Does | Expects`, four columns, and stays legible.
+- Colour is not available in this message; terminal markdown has none to give.
+  The colour lives in `twss approve` (orange sandbox banner, yellow writes, red
+  destroys), which honours `NO_COLOR` and `TWSS_COLOR=never|always` and goes
+  plain automatically when stdout is not a terminal.
 
 ## Rules
 
