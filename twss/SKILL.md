@@ -1,6 +1,6 @@
 ---
 name: twss
-description: Batch-approve a queue of shell commands ("that's what she said") — Claude writes the exact commands to .twss-queue.txt, the user approves once with the twss CLI, and a PreToolUse hook auto-allows only byte-exact, unconsumed lines of the approved queue. Use when the user invokes /twss, asks to batch-approve commands, mentions a command queue, or wants a known sequence to run without prompt-by-prompt approvals.
+description: Batch-approve a queue of shell commands: Claude writes exact lines to .twss-queue.txt, the user approves once with the twss CLI, and a PreToolUse hook allows only byte-exact, unconsumed lines. Use on /twss, a batch-approve request, a command queue, or a known sequence without per-command prompts.
 argument-hint: "the commands/task to queue, or 'status' / 'clear'"
 ---
 

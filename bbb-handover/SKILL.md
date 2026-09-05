@@ -8,6 +8,16 @@ Produce a handover document that combines two things the stock `handoff` skill
 doesn't: compaction of *this conversation* AND enrichment from the *BBB vault*, so
 the receiving session starts mid-stride instead of rediscovering.
 
+## 0. When to hand over instead of continuing
+
+Measured on this vault (2026-09-05, 38 working sessions): 57% of all cache-creation
+tokens were the prompt prefix being re-created after an idle gap or a compaction in a
+long-lived session, and every compaction happened in a session past 100 turns. So when a
+session has compacted once, has idled past the prompt-cache window, or is carrying mostly
+finished work, write this handover and start a fresh session instead of continuing.
+Resuming a cold session re-enters its whole prefix at cache-write price; a fresh session
+with a handover pays only for the handover.
+
 ## 1. Determine the audience
 
 Two modes; pick from the arguments, or ask one question if unclear:

@@ -1,6 +1,6 @@
 ---
 name: bbb-memory-distill
-description: Promote accumulated agent memories from a machine's volatile memory buffer into the BBB vault's durable shared layer — context files, ADRs, daily notes — and optionally produce a handover document. Use this skill whenever the user asks to distill, flush, promote, consolidate, review, or clear their memories; says their memory file is getting long or messy; asks what an agent has learned or remembered; wants to sync knowledge between machines; asks to write memories into context or turn them into decisions; or wants a handover document at the end of a working session. Also use it before switching machines, since memory buffers are machine-scoped and do not travel.
+description: Promote a machine's volatile agent memories into the BBB vault's shared layer (context, ADRs, daily notes), optionally with a handover doc. Use when asked to distill, flush, promote, consolidate, review or clear memories, when the memory file is long or messy, or before switching machines.
 ---
 
 # Distill memory into the vault

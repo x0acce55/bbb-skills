@@ -1,6 +1,6 @@
 ---
 name: change-attribution
-description: Apply the Audacy change-attribution scheme to infrastructure merge requests — scoped GitLab labels (origin, iam, ticket) plus matching Change-* git trailers in the squash commit message, and the Zendesk ticket that authorises an IAM change. Use when opening or updating an MR in a tf-*, gitops-k8s-*, tf-org-v2, or tf-gcp-* repo; when an IAM change needs a ticket; when asked to label or attribute an infrastructure change; or when a merge request needs to be traceable to the team and ticket that authorised it. Applies to SecOps and Platform Engineering work alike.
+description: Apply Audacy's change-attribution scheme to infrastructure MRs: scoped GitLab labels (origin, iam, ticket), matching Change-* trailers in the squash commit, and the authorising Zendesk ticket for IAM changes. Use when opening or updating an MR in tf-*, gitops-k8s-*, tf-org-v2 or tf-gcp-* repos.
 ---
 
 # Change attribution

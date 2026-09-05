@@ -1,6 +1,6 @@
 ---
 name: audacy-ticket-voice
-description: Draft or review a ticket or merge-request comment in Josiah's own voice for Audacy work — Jira (DEVOPS, SECOPS, CAR), Zendesk, or a GitLab MR thread. Use whenever asked to draft, write, reply to, comment on, push back on, approve or decline a ticket or MR "as me" or "in my voice", when reviewing an access request before sign-off, and when recording what changed between a draft and what he actually posted. Drafts go out under his own name, so this also carries the rule against inventing role names, technical positions, or approvers.
+description: Draft or review Jira (DEVOPS, SECOPS, CAR), Zendesk or GitLab MR comments in Josiah's own voice for Audacy work: 'as me' drafts, replies, push-backs, approvals or declines, access-request reviews before sign-off, draft-vs-posted records. Never invent role names, positions or approvers.
 argument-hint: "Which ticket or MR, and what you want to say"
 ---
 

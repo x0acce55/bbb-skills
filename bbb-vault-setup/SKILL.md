@@ -1,6 +1,6 @@
 ---
 name: bbb-vault-setup
-description: Scaffold, extend, and maintain the BBB Obsidian "second brain" vault — its context, decisions, projects, daily and memories directories, the AGENTS.md/CLAUDE.md instruction pair, ADRs, per-file YAML frontmatter, and generated folder index notes. Use this skill whenever the user mentions the BBB vault, their Obsidian vault, their "second brain", setting up or repairing vault structure, adding a project or a note, writing or linking an ADR or architecture decision, regenerating an index, checking for orphaned notes or sync conflicts, verifying that a machine is correctly wired to the vault, registering a new machine, or configuring Claude Code auto memory and settings.local.json — even if they don't name the skill. Also use it before adding any note to the vault, since every note needs frontmatter, an up-link, and an index entry.
+description: Scaffold and maintain the BBB Obsidian vault: frontmatter, up-links, generated indexes, ADRs, AGENTS.md/CLAUDE.md, machine registration, auto-memory wiring. Use for any vault or second-brain structure work: add a note or project, write or link an ADR, regenerate indexes, check orphans.
 ---
 
 # BBB vault setup and maintenance
