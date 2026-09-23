@@ -60,6 +60,28 @@ def names_an_approver(text):
     return bool(NAMED_PERSON.search(text) or NAMED_ROLE.search(text))
 
 
+def hard_wrapped(text):
+    """Return the count of paragraphs the author wrapped by hand.
+
+    Every destination he pastes into -- Gmail, Jira, Zendesk, GitLab, Slack -- reflows
+    text itself. A draft wrapped at a fixed column arrives with breaks mid-sentence and
+    has to be repaired by hand. A paragraph is hard-wrapped when it spans several lines,
+    none of them reaches the column an editor would wrap at, and the joined text is long
+    enough that something must have broken it -- i.e. the author did.
+    Lists, tables, headings and quotes are excluded: their line breaks are meaningful.
+    """
+    count = 0
+    for block in re.split(r"\n\s*\n", text.strip()):
+        lines = [ln for ln in block.split("\n") if ln.strip()]
+        if len(lines) < 2:
+            continue
+        if any(re.match(r"\s*([-*+|>#]|\d+[.)])\s", ln) for ln in lines):
+            continue
+        if max(len(ln) for ln in lines) <= 100 and len(" ".join(lines)) > 100:
+            count += 1
+    return count
+
+
 def check(text, long_form=False):
     flags = []
     warn = []
@@ -77,6 +99,13 @@ def check(text, long_form=False):
     for phrase, why in WRAPPER:
         if phrase in low:
             flags.append(f"{why}: {phrase!r}")
+
+    n_wrapped = hard_wrapped(body)
+    if n_wrapped:
+        flags.append(
+            f"{n_wrapped} hard-wrapped paragraph(s) -- every destination reflows text "
+            "itself, so a fixed-column draft pastes with breaks mid-sentence; write one "
+            "line per paragraph and let the editor wrap")
 
     if APPROVAL_WORDS.search(body) and not names_an_approver(body):
         flags.append(

@@ -119,6 +119,28 @@ Rules:
 
 The worked cases behind both shapes are in [[bigquery-authorization]].
 
+## 4b. Write it unwrapped
+
+**One line per paragraph. Never wrap prose at a fixed column.**
+
+Everywhere he pastes a draft -- Gmail, Jira, Zendesk, GitLab, Slack -- reflows text
+itself. A draft wrapped at 80 or 100 characters arrives with breaks in the middle of
+sentences, and he has to repair every one by hand before sending. He noticed it across
+several handed-over drafts before it was written down here.
+
+So: write each paragraph as a single unbroken line, however long, and let the destination
+wrap it. This applies to the file on disk as much as to the text in the reply -- the file
+is what gets copied.
+
+`check_draft.py` asserts this. A paragraph counts as hard-wrapped when it spans several
+lines, none of them long enough that an editor would have broken it, and the joined text
+is longer than a line -- which means a person did the breaking.
+
+**Line breaks that are meaningful stay.** Lists, tables, headings, quoted blocks, and the
+sign-off are structure, not wrapping, and the check skips them. Watch the sign-off in
+particular: `Thanks,` and `---Josiah` are two lines and joining them is wrong. An
+unwrapping pass that is not list-aware will eat all of these.
+
 ## 5. Never do these
 
 - **Never offer his time.** No "happy to hop on a call", no "let me know if you need

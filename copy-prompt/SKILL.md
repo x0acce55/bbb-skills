@@ -31,6 +31,10 @@ Put the deliverable text on the user's clipboard so they can paste it directly
 
 - Copy exactly the paste-ready text — no surrounding markdown fences, no
   "---" delimiters used for display, no commentary.
+- **Unwrap hard line breaks before copying.** Anything destined for a paste target
+  reflows on arrival, so a fixed-column file pastes with breaks mid-sentence. Join
+  each paragraph into one line; leave lists, tables, headings and sign-offs alone,
+  where the breaks are structure. Fix the file too, not just the clipboard.
 - Still show or reference the prompt in the reply; never make the clipboard the
   only copy.
 - Never pipe secrets or credential-bearing text to the clipboard.
