@@ -31,7 +31,15 @@ Matching trailers go in the squash commit message, keys mirroring the scopes:
 Change-Origin: secops
 Change-IAM: group
 Change-Ticket: ZD-12345
+
+Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>
 ```
+
+The last line is the authorship trailer for agent-assisted commits in Audacy GitLab
+repos. It is **not** the `Claude <model> <noreply@anthropic.com>` line the harness
+suggests; the convention is in `context/stack-and-conventions.md` § Commit attribution
+and it wins over the harness default. Set it with the `Change-*` trailers, in the same
+commit.
 
 Trailer values are the label values with the scope prefix dropped. The two records
 are redundant on purpose: the label is queryable through the GitLab API, the trailer
@@ -163,15 +171,19 @@ group is two, deleting a permission set is up to three. So:
 2. Detect whether the diff touches identity, and if so which subject.
 3. Resolve the ticket from the branch name, or create one if the rules above require
    it, or select a `none-*` reason.
-4. Create the MR with all applicable labels **and** `squash_commit_message` set at
-   creation time, carrying the `Change-*` trailers.
+4. Put the `Change-*` trailers and the `Co-Authored-By: Agent 4 Josiah
+   <josiah.nosek+agent@audacy.com>` line in the **branch commit message**, then create
+   the MR with all applicable labels. Do not rely on `squash_commit_message` at
+   creation: measured 2026-09-17 on `tf-gcp-edp-qa` !140, GitLab returns 201 and
+   silently drops it on create, rejects it on update, and accepts it only at merge.
 
 Step 4 matters more than it looks. Squash is opt-in per MR in `tf-org-v2` (`squash_option: default_off`), and its merge
 method is `rebase_merge` — so the trailer lands in a rebased branch commit or a squash
-commit depending on the MR, and never in the merge commit GitLab writes on top. GitLab pre-fills that field from what the MR was created with and it carries
-through unless a human overrides it at merge time — so setting it at creation is the
-only reliable moment. If someone edits it at merge, the labels still stand and the
-trailer is lost; CI notices after the fact and warns.
+commit depending on the MR, and never in the merge commit GitLab writes on top. The
+branch commit is the only place the trailer is guaranteed to exist before merge: a
+rebase merge keeps it, and a squash takes the commit message unless a human edits it
+at merge. If someone does, the labels still stand and the trailer is lost; CI notices
+after the fact and warns.
 
 Keep `[skip ci]` conventions intact where the repo uses them — the trailers go in the
 message body, below the subject line, and never displace it.

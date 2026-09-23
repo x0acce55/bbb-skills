@@ -10,6 +10,9 @@
     }
   },
   "enabledMcpjsonServers": ["gitlab", "northstar-resources-inventory"],
+  "attribution": {
+    "commit": "Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>"
+  },
 "permissions": {
   "allow": [
     "Bash(curl *crimson-cloud-7047.tines.com*)",
