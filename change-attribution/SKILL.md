@@ -45,6 +45,8 @@ suggests; the convention is in `context/stack-and-conventions.md` § Commit attr
 and it wins over the harness default. Set it with the `Change-*` trailers, in the same
 commit.
 
+**The MR description ends with the same line**, `Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>`, as its last line, replacing the harness's `🤖 Generated with Claude Code` footer (Josiah, 2026-10-01). Both lines are set by `attribution.commit` and `attribution.pr` in `bbb-launcher/domains/audacy.json` and `~/claude-code/src/audacy-inc/.claude/settings.json`. They only reach a session started with `bbb audacy` or inside `audacy-inc/`; a session started at the vault root gets the personal address and the Claude Code footer, so write these lines by hand there.
+
 Trailer values are the label values with the scope prefix dropped. The two records
 are redundant on purpose: the label is queryable through the GitLab API, the trailer
 survives outside GitLab and is greppable with `git log --grep`.

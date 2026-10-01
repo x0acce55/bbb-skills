@@ -11,7 +11,8 @@
   },
   "enabledMcpjsonServers": ["gitlab", "northstar-resources-inventory"],
   "attribution": {
-    "commit": "Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>"
+    "commit": "Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>",
+    "pr": "Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>"
   },
 "permissions": {
   "allow": [
