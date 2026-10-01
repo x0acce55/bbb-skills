@@ -1,6 +1,6 @@
 ---
 name: change-attribution
-description: Apply Audacy's change-attribution scheme to infrastructure MRs: scoped GitLab labels (origin, iam, ticket), matching Change-* trailers in the squash commit, and the authorising Zendesk ticket. Use for MRs in tf-*, gitops-k8s-*, tf-org-v2 or tf-gcp-* repos, or when an IAM change needs a ticket.
+description: Apply Audacy's change-attribution scheme to MRs: scoped GitLab labels (origin, iam, privacy, mandate, ticket), matching Change-* trailers in the commit, and the authorising Zendesk ticket. Use for MRs in tf-*, gitops-k8s-*, tf-org-v2 or tf-gcp-* repos, for any SecOps MR in a repo another team owns (such as Product's app repos), or when an IAM change needs a ticket.
 ---
 
 # Change attribution
@@ -19,6 +19,8 @@ Anything that cannot be derived mechanically is asked once rather than guessed.
 | --- | --- | --- |
 | `origin::` | `secops`, `pe` | Always |
 | `iam::` | `user`, `group`, `permission-set`, `assignment`, `service-account`, `federation` | Only when the change touches identity |
+| `privacy::` | `consent`, `dsar` | Only when the change touches privacy (ADR-0061) |
+| `mandate::` | `legal` | Every `origin::secops` MR in a repo another team owns (ADR-0061) |
 | `ticket::` | `ZD-<n>`, `SECOPS-<n>`, `none-<reason>` | Always |
 
 Labels are lowercase and scoped (`key::value`). GitLab makes values within one
@@ -30,6 +32,8 @@ Matching trailers go in the squash commit message, keys mirroring the scopes:
 ```
 Change-Origin: secops
 Change-IAM: group
+Change-Privacy: consent
+Change-Mandate: legal
 Change-Ticket: ZD-12345
 
 Co-Authored-By: Agent 4 Josiah <josiah.nosek+agent@audacy.com>
@@ -128,6 +132,34 @@ useful context and mention it when a deletion comes up, so the person deciding k
 gate exists and why. It is a temporary process gate rather than a standing authority —
 Josiah owns this work, and his decision settles it. Do not block on Simon's approval, and
 do not present his rule as though it overrides the person you are working for.
+
+## Deciding the `privacy::` value
+
+A subject axis that works like `iam::`: one value per MR, and the axis is omitted when the change
+touches no privacy concern (no `privacy::none`).
+
+| Value | What changed |
+| --- | --- |
+| `privacy::consent` | Consent enforcement: CMP or banner config, gating trackers, pixels and tags on consent, privacy signals (GPC, US Privacy and GPP strings), cookie handling |
+| `privacy::dsar` | Data subject requests: access, deletion, correction and opt-out handling, and the integrations that fulfil them |
+
+## Deciding the `mandate::` value
+
+`origin::` says who made the change, and `mandate::` says under what authority SecOps is changing a
+repo it does not own. It goes on every `origin::secops` MR in another team's repo, such as
+Product's `mobile-app-client` or the `station-tools` WordPress repos. Repo ownership cannot be
+derived reliably, so ask when it is unclear.
+
+| Value | When |
+| --- | --- |
+| `mandate::legal` | Legal directed SecOps to act. The first case is consent remediation under ADR-0060 |
+
+Other mandates (incident response, a security finding, an audit) are added by amending ADR-0061
+when first needed, not invented on the spot.
+
+An MR carrying `mandate::` opens its description with a short **Why SecOps** paragraph for the
+owning team's reviewers. Say who asked, what SecOps is doing, and that the owning team keeps the
+review and the merge. Keep it a request, not a charge: no blame, no history of who failed.
 
 ## Deciding the `ticket::` value
 
